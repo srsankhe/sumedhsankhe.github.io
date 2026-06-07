@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="How to build a local Kubernetes test rig for R Shiny using Colima and k3s. Validate upgrades, debug issues, and measure resource limits before spending a dollar on cloud infrastructure.">
+    <meta name="author" content="Sumedh R. Sankhe">
+    <meta name="keywords" content="Kubernetes, R, Shiny, ShinyProxy, Docker, k3s, Colima, local development, DevOps">
+    <title>Validate Before You Spend: A Local Kubernetes Rig for Shiny | Sumedh R. Sankhe</title>
+    <link rel="icon" type="image/svg+xml" href="../../assets/images/favicon.svg">
+
+    <!-- Canonical URL -->
+    <link rel="canonical" content="https://sumedhsankhe.github.io/blog/posts/k8s-shiny-part-2-local-rig.html">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://sumedhsankhe.github.io/blog/posts/k8s-shiny-part-2-local-rig.html">
+    <meta property="og:title" content="Validate Before You Spend: A Local Kubernetes Rig for R Shiny">
+    <meta property="og:description" content="How to build a local Kubernetes cluster with Colima and k3s to validate your full Shiny stack before touching Azure.">
+    <meta property="og:image" content="https://sumedhsankhe.github.io/assets/images/profile.png">
+    <meta property="article:published_time" content="2026-06-06">
+    <meta property="article:author" content="Sumedh R. Sankhe">
+    <meta property="article:tag" content="Kubernetes">
+    <meta property="article:tag" content="R Shiny">
+    <meta property="article:tag" content="k3s">
+    <meta property="article:tag" content="Colima">
+    <meta property="article:tag" content="DevOps">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Validate Before You Spend: A Local Kubernetes Rig for R Shiny">
+    <meta name="twitter:description" content="Build a full local K8s test rig for Shiny using Colima and k3s — validate everything before it costs money.">
+
+    <!-- Additional SEO -->
+    <meta name="robots" content="index, follow">
+
+    <!-- Google tag (gtag.js) - Consent-based loading -->
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      if (localStorage.getItem('cookieConsent') === 'accepted') {
+        const script = document.createElement('script');
+        script.async = true;
+        script.src = 'https://www.googletagmanager.com/gtag/js?id=G-ZB17TTEQRQ';
+        document.head.appendChild(script);
+        gtag('js', new Date());
+        gtag('config', 'G-ZB17TTEQRQ', {
+          'anonymize_ip': true,
+          'allow_google_signals': false,
+          'allow_ad_personalization_signals': false,
+          'cookie_flags': 'SameSite=None;Secure'
+        });
+      }
+    </script>
+
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="../../assets/css/styles.css">
+
+    <!-- Inline theme script to prevent FOUC -->
+    <script>
+        (function() {
+            try {
+                const validThemes = ['light', 'dark'];
+                const savedTheme = localStorage.getItem('theme');
+                const systemPrefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const theme = validThemes.includes(savedTheme) ? savedTheme : (systemPrefersDark ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', theme);
+                const savedColorblindMode = localStorage.getItem('colorblindMode');
+                if (savedColorblindMode === 'true') {
+                    document.documentElement.setAttribute('data-colorblind', 'true');
+                }
+            } catch (e) {
+                const systemPrefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.setAttribute('data-theme', systemPrefersDark ? 'dark' : 'light');
+            }
+        })();
+    </script>
+
+    <style>
+        .diagram-container {
+            margin: 2rem 0;
+            text-align: center;
+            overflow-x: auto;
+        }
+        .diagram-container svg {
+            max-width: 100%;
+            height: auto;
+        }
+        .blog-post-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            font-size: 0.95rem;
+        }
+        .blog-post-content th,
+        .blog-post-content td {
+            padding: 0.6rem 1rem;
+            border: 1px solid var(--border-color, #ddd);
+            text-align: left;
+        }
+        .blog-post-content th {
+            background: var(--card-bg, #f5f5f5);
+            font-weight: 600;
+        }
+        .series-nav {
+            display: flex;
+            gap: 1rem;
+            margin: 2rem 0;
+            padding: 1rem;
+            background: var(--card-bg, #f5f5f5);
+            border-radius: 8px;
+            font-size: 0.9rem;
+            flex-wrap: wrap;
+        }
+        .series-nav a {
+            text-decoration: none;
+        }
+        .series-nav a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <a href="#main-content" class="skip-to-main">Skip to main content</a>
+
+    <nav>
+        <div class="nav-container">
+            <div class="nav-left">
+                <div class="logo">Sumedh R. Sankhe</div>
+                <div class="toggle-buttons">
+                    <button type="button" class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode" title="Toggle dark mode">
+                        <span id="themeIcon">◐</span>
+                    </button>
+                    <button type="button" class="colorblind-toggle" id="colorblindToggle" aria-label="Toggle colorblind-friendly mode" title="Colorblind-friendly colors">
+                        <span id="colorblindIcon">👁</span>
+                    </button>
+                </div>
+            </div>
+            <button type="button" class="menu-toggle" id="menuToggle" aria-label="Toggle menu" aria-expanded="false">
+                <span id="menuIcon">☰</span>
+            </button>
+            <ul class="nav-links" id="navLinks">
+                <li><a href="../../index.html">Home</a></li>
+                <li><a href="../../about.html">About</a></li>
+                <li><a href="../../projects.html">Projects</a></li>
+                <li><a href="../../skills.html">Skills</a></li>
+                <li><a href="../../blog.html" class="active" aria-current="page">Blog</a></li>
+                <li><a href="../../contact.html">Contact</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <main id="main-content">
+        <article class="blog-post">
+            <header class="blog-post-header">
+                <div class="blog-post-meta">
+                    <time datetime="2026-06-06">June 6, 2026</time>
+                    <span class="blog-post-separator">•</span>
+                    <span class="blog-post-read-time">11 min read</span>
+                </div>
+                <h1>Validate Before You Spend: A Local Kubernetes Rig for R Shiny</h1>
+                <p class="blog-post-subtitle">Part 2 of 3 — Build a full local Kubernetes cluster on your laptop to catch configuration problems before they become cloud bills.</p>
+                <div class="blog-post-tags">
+                    <span class="blog-tag">Kubernetes</span>
+                    <span class="blog-tag">R Shiny</span>
+                    <span class="blog-tag">k3s</span>
+                    <span class="blog-tag">Colima</span>
+                    <span class="blog-tag">DevOps</span>
+                </div>
+            </header>
+
+            <div class="blog-post-content">
+                <p class="blog-intro">Cloud infrastructure mistakes are expensive in ways that are hard to anticipate. A local test rig catches 80% of them before they cost a dollar.</p>
+
+                <div class="series-nav">
+                    <strong>Series:</strong>
+                    <a href="./k8s-shiny-part-1-why-kubernetes.html">Part 1: Why Kubernetes?</a>
+                    <span>·</span>
+                    <span>Part 2: The Local Test Rig (you are here)</span>
+                    <span>·</span>
+                    <a href="./k8s-shiny-part-3-azure-production.html">Part 3: Azure Production Cluster</a>
+                </div>
+
+                <h2 id="why-local">The Case for a Local Rig</h2>
+
+                <p>The wrong virtual machine size, a misconfigured ingress rule, a Redis cluster that behaves differently under real traffic than under test conditions — these are not hypothetical risks. They are common, and fixing them in production means either accepting downtime or scrambling under pressure.</p>
+
+                <p>The solution is a <strong>local test rig</strong>: a full replica of the production stack running entirely on a developer's laptop. Not a mock. Not a simplified version. The same components, the same configuration, the same behaviors — just on a smaller scale.</p>
+
+                <div class="diagram-container">
+                    <pre class="mermaid">
+flowchart LR
+    Dev["Developer\nLaptop"] -->|"validate first"| Rig["Local K8s Rig\nColima + k3s"]
+    Rig -->|"promote when confident"| AKS["Azure AKS\nProduction"]
+
+    style Rig fill:#e8f4f8,stroke:#43bf91
+    style AKS fill:#0078d4,color:#fff
+                    </pre>
+                </div>
+
+                <p>A well-built local rig lets you:</p>
+                <ul>
+                    <li>Validate <strong>upgrades</strong> (new ShinyProxy version, new ingress-nginx version) without touching production</li>
+                    <li>Reproduce and debug <strong>issues</strong> without real users being affected</li>
+                    <li>Develop <strong>confidence</strong> in configuration changes before they go anywhere near production</li>
+                    <li>Move <strong>fast</strong> — the iteration cycle on a local cluster is seconds, not minutes</li>
+                </ul>
+
+                <h2 id="tools">The Tools</h2>
+
+                <h3>Colima — A Mac-Friendly VM Runtime</h3>
+
+                <p>On macOS, containers need a Linux virtual machine to run (containers are a Linux technology). <a href="https://github.com/abiosoft/colima" target="_blank" rel="noopener noreferrer">Colima</a> is a lightweight, open-source VM runtime. Configure it with 4 CPUs, 8GB RAM, and 60GB disk — that's enough for ShinyProxy, Redis Sentinel, and a handful of Shiny user containers running simultaneously.</p>
+
+                <h3>k3s — Lightweight Kubernetes</h3>
+
+                <p><a href="https://k3s.io" target="_blank" rel="noopener noreferrer">k3s</a> is a certified Kubernetes distribution stripped to its essentials. It runs the full Kubernetes API but without the cloud provider integrations and heavy storage backends you don't need locally. Colima can launch k3s directly, so spinning up a local Kubernetes cluster is a single command.</p>
+
+                <h3>The Application Stack</h3>
+
+                <p>Inside the k3s cluster, the stack mirrors production exactly:</p>
+
+                <table>
+                    <thead>
+                        <tr><th>Component</th><th>Local Version</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>ShinyProxy Operator</td><td>Same version as production</td></tr>
+                        <tr><td>ShinyProxy</td><td>Same version as production</td></tr>
+                        <tr><td>Redis Sentinel</td><td>Same Helm chart as production</td></tr>
+                        <tr><td>ingress-nginx</td><td>Same version as production</td></tr>
+                        <tr><td>cert-manager</td><td>Same version as production</td></tr>
+                        <tr><td>Shiny App</td><td>Built from the same Dockerfile</td></tr>
+                    </tbody>
+                </table>
+
+                <p>The "same version as production" part is deliberate. A rig running different versions answers different questions than you need answered.</p>
+
+                <h2 id="architecture">Architecture: What's Running and Why</h2>
+
+                <div class="diagram-container">
+                    <pre class="mermaid">
+graph TD
+    Browser["Browser\nlocalhost"] --> Ingress
+
+    subgraph Colima["Colima VM"]
+        subgraph K3s["k3s Kubernetes Cluster"]
+            subgraph NS_SP["namespace: shinyproxy"]
+                Ingress["ingress-nginx"] --> SP["ShinyProxy\nInstance"]
+                SP --> Redis["Redis Sentinel\n(3 pods)"]
+                SP --> UserPods["Shiny App Pods"]
+                Operator["ShinyProxy\nOperator"] -.->|manages| SP
+                CertMgr["cert-manager"] -.->|TLS certs| Ingress
+            end
+        end
+    end
+
+    style SP fill:#f4811f,color:#fff
+    style Redis fill:#dc382d,color:#fff
+    style Ingress fill:#43bf91,color:#fff
+    style Operator fill:#326ce5,color:#fff
+                    </pre>
+                </div>
+
+                <p>A few things worth noting:</p>
+
+                <p><strong>TLS is still present.</strong> The temptation is to skip TLS locally ("it's just a test"). Don't. ShinyProxy uses WebSockets, and WebSocket behavior over plain HTTP differs from HTTPS in subtle ways that matter. cert-manager issues self-signed certificates locally; the browser warns, but the stack is exercised correctly.</p>
+
+                <p><strong>Redis Sentinel runs at full complexity.</strong> Three replicas, leader election, sentinel coordination. Start with the real thing — you'll need it the moment you test failover behavior.</p>
+
+                <p><strong>Node pools are simplified.</strong> Production uses separate pools for infrastructure and user workloads. Locally, everything runs on one node. This is fine for validating component interactions, not for validating scheduler placement.</p>
+
+                <h2 id="upgrade-workflow">The Upgrade Testing Workflow</h2>
+
+                <p>The primary use case for a local rig is <strong>upgrade validation</strong>. This is the workflow:</p>
+
+                <div class="diagram-container">
+                    <pre class="mermaid">
+flowchart TD
+    A["Identify upgrade target\ne.g. ShinyProxy 3.0.2 to 3.2.4"] --> B["Update version in local rig config"]
+    B --> C["Rebuild and redeploy the rig"]
+    C --> D{Did it come up?}
+    D -->|No| E["Debug: operator logs,\npod events, Redis state"]
+    E --> B
+    D -->|Yes| F["Smoke test\nlogin, launch app, use app, logout"]
+    F --> G{Pass?}
+    G -->|No| H["Find regression\ncheck release notes vs old config"]
+    H --> I["Fix config or workaround"]
+    I --> F
+    G -->|Yes| J["Extended test\nsession reattach, timeout, pod lifecycle"]
+    J --> K{All behaviors correct?}
+    K -->|No| L["Document gap, decide: accept or fix"]
+    L --> J
+    K -->|Yes| M["Version validated\nPromote to production plan"]
+
+    style A fill:#e8f4f8
+    style M fill:#d4edda,stroke:#28a745
+                    </pre>
+                </div>
+
+                <p>This workflow caught real issues before they reached production: configuration property names changed between ShinyProxy versions, Redis client compatibility differences, ingress annotation syntax changes across ingress-nginx versions. Each would have caused an outage if found first in production.</p>
+
+                <h2 id="maxpods">Node Resource Planning: The maxPods Problem</h2>
+
+                <p>One of the less-documented aspects of Kubernetes is that each node has a hard limit on the number of pods it can run, set at node creation time (<code>maxPods</code>). This limit is <strong>immutable after creation</strong>. It also determines how much memory the Kubernetes node agent pre-reserves — even if far fewer pods are actually running.</p>
+
+                <div class="diagram-container">
+                    <pre class="mermaid">
+graph TD
+    Node["Kubernetes Node\n4 CPU / 16 GB RAM"]
+    Node --> Reserve["Kubelet Memory Reservation\nscales with maxPods setting"]
+    Node --> System["System Overhead\nOS + container runtime"]
+    Node --> Infra["Infrastructure Pods\ningress, cert-manager, Redis..."]
+    Node --> Available["Available for User Pods\nShiny sessions"]
+
+    Reserve --> Note1["Higher maxPods = more reserved\neven when pods are not running"]
+
+    style Reserve fill:#fff3cd
+    style Available fill:#d4edda
+    style Note1 fill:#f8d7da,stroke:#f5c6cb
+                    </pre>
+                </div>
+
+                <p>The practical implication: if you set <code>maxPods</code> too high, kubelet pre-reserves memory you'll never use. Too low, and you hit the pod count ceiling before the memory ceiling. The local rig is the right place to measure this empirically. In production, changing <code>maxPods</code> requires a blue/green pool rotation — getting it right locally saves significant disruption later.</p>
+
+                <h2 id="apple-silicon">Apple Silicon Considerations</h2>
+
+                <p>If you're developing on a Mac with an Apple M-series chip (arm64), Shiny app images built for production (linux/amd64) won't run natively. The recommended strategy:</p>
+
+                <div class="diagram-container">
+                    <pre class="mermaid">
+flowchart LR
+    A["arm64 node\nApple Silicon"] --> B["Infrastructure pods\ningress, Redis, operator"]
+    A --> C["Shiny app pod\nlinux/amd64"]
+
+    B --> D["Native arm64 images\nFast, no overhead"]
+    C --> E["Emulated via binfmt_misc\nSlower startup, correct behavior"]
+
+    style D fill:#d4edda
+    style E fill:#fff3cd
+                    </pre>
+                </div>
+
+                <p>Build infrastructure images natively for arm64 — they run fast. For the Shiny app pod, use the same linux/amd64 image as production, relying on Linux's <code>binfmt_misc</code> for emulation. It's slower to start (20–30 seconds vs 5 seconds for native), but you're testing the actual production image. The tradeoff is worth it.</p>
+
+                <h2 id="session-testing">Testing Session Behavior</h2>
+
+                <p>Beyond "did it start," the local rig enables systematic testing of session behaviors that are otherwise hard to observe without affecting real users.</p>
+
+                <div class="diagram-container">
+                    <pre class="mermaid">
+sequenceDiagram
+    participant H as Test Harness
+    participant SP as ShinyProxy
+    participant R as Redis
+    participant P as Shiny Pod
+
+    H->>SP: Open session (user A)
+    SP->>R: Register user session to pod ID
+    SP->>P: Start Shiny container
+    P-->>SP: Ready
+    SP-->>H: Session active
+
+    Note over H,P: Simulate network interruption
+    H->>H: Drop WebSocket connection
+    H->>SP: Reconnect attempt
+    SP->>R: Look up user session
+    SP-->>H: Reconnected to same container
+                    </pre>
+                </div>
+
+                <p>Running this kind of test systematically — with a Playwright-based harness driving different close scenarios — gives you quantitative answers (how long does reconnect take? how many sessions survive a rolling restart?) before the question comes up in production.</p>
+
+                <h2 id="debugging">The Rig as a Debugging Environment</h2>
+
+                <p>When unexpected behavior appears in production, the rig lets you reproduce it without risk. The debugging loop:</p>
+
+                <div class="diagram-container">
+                    <pre class="mermaid">
+flowchart LR
+    Prod["Production observation\nPod keeps restarting"] --> Hypo["Form hypothesis\nRedis connection timeout?"]
+    Hypo --> Repro["Reproduce on rig\nsimulate Redis leader failure"]
+    Repro --> Confirm{Reproduced?}
+    Confirm -->|Yes| Fix["Implement fix\non rig"]
+    Confirm -->|No| Hypo
+    Fix --> Validate["Validate fix\non rig"]
+    Validate --> Promote["Apply fix\nto production"]
+
+    style Prod fill:#f8d7da
+    style Fix fill:#d4edda
+    style Promote fill:#0078d4,color:#fff
+                    </pre>
+                </div>
+
+                <h2 id="limits">What the Local Rig Cannot Tell You</h2>
+
+                <p>Being honest about limitations matters as much as being enthusiastic about capabilities.</p>
+
+                <p><strong>Performance at scale:</strong> A laptop cluster cannot tell you how 50 concurrent Shiny sessions will perform. It can tell you that sessions work correctly; it cannot tell you about latency under load.</p>
+
+                <p><strong>Network topology:</strong> The local rig uses NodePort and localhost DNS. Production uses Azure Load Balancer and public DNS. Networking behaviors — particularly around idle connection timeouts and long-lived WebSockets — can differ.</p>
+
+                <p><strong>Managed Kubernetes behaviors:</strong> AKS manages the control plane and applies node configurations differently than k3s does. The rig validates application-layer behavior; it doesn't validate AKS-specific behaviors.</p>
+
+                <p>The right mental model: the local rig eliminates the configuration and component-interaction bugs that would otherwise surface in production. It reduces the number of things you need to discover there — it doesn't eliminate production testing entirely.</p>
+
+                <h2 id="whats-next">What's Next</h2>
+
+                <p>Part 2 covered the local rig: why it exists, how it's composed, and what classes of problems it catches. The workflow — validate locally, then promote — forms the discipline that makes the Azure deployment reliable.</p>
+
+                <p><strong><a href="./k8s-shiny-part-3-azure-production.html">Part 3</a></strong> covers the Azure production cluster: AKS, ACR, Key Vault, OIDC authentication, monitoring, and the full deployment flow.</p>
+
+                <hr>
+
+                <p><strong>Questions or feedback?</strong> Connect with me on <a href="https://linkedin.com/in/sankhe" target="_blank" rel="noopener noreferrer">LinkedIn</a>.</p>
+
+                <p><strong>Further reading:</strong></p>
+                <ul>
+                    <li><a href="https://github.com/abiosoft/colima" target="_blank" rel="noopener noreferrer">Colima on GitHub</a> — Mac VM runtime for containers</li>
+                    <li><a href="https://k3s.io" target="_blank" rel="noopener noreferrer">k3s</a> — Lightweight certified Kubernetes</li>
+                    <li><a href="https://shinyproxy.io" target="_blank" rel="noopener noreferrer">ShinyProxy documentation</a></li>
+                </ul>
+            </div>
+
+            <div class="blog-post-footer">
+                <a href="../../blog.html" class="blog-back-link">← Back to Blog</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Sumedh R. Sankhe. All rights reserved.</p>
+    </footer>
+
+    <div id="cookieConsent" class="cookie-consent" role="dialog" aria-live="polite" aria-label="Cookie consent">
+        <div class="cookie-consent-content">
+            <div class="cookie-consent-text">
+                <p>
+                    I use cookies and analytics to improve your experience and understand how you use this site.
+                    By accepting, you consent to the use of Google Analytics with IP anonymization.
+                    <a href="../../privacy.html">Learn more</a>
+                </p>
+            </div>
+            <div class="cookie-consent-buttons">
+                <button id="cookieAccept" class="cookie-btn cookie-btn-accept" aria-label="Accept cookies">Accept</button>
+                <button id="cookieDecline" class="cookie-btn cookie-btn-decline" aria-label="Decline cookies">Decline</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mermaid diagrams -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+        const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default';
+        mermaid.initialize({ startOnLoad: true, theme: theme, securityLevel: 'loose' });
+    </script>
+
+    <script src="../../assets/js/script.js"></script>
+</body>
+</html>

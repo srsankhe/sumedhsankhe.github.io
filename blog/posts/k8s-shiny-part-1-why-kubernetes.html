@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Why Kubernetes for R Shiny? Part 1 of a 3-part series covering the scaling problem, ShinyProxy, Redis Sentinel, and the full component stack for production Shiny deployments.">
+    <meta name="author" content="Sumedh R. Sankhe">
+    <meta name="keywords" content="Kubernetes, R, Shiny, ShinyProxy, Docker, DevOps, AKS, Azure, Redis, ingress-nginx">
+    <title>Why Kubernetes for R Shiny? | Sumedh R. Sankhe</title>
+    <link rel="icon" type="image/svg+xml" href="../../assets/images/favicon.svg">
+
+    <!-- Canonical URL -->
+    <link rel="canonical" content="https://sumedhsankhe.github.io/blog/posts/k8s-shiny-part-1-why-kubernetes.html">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://sumedhsankhe.github.io/blog/posts/k8s-shiny-part-1-why-kubernetes.html">
+    <meta property="og:title" content="Running R Shiny at Scale: Why Kubernetes Changes Everything">
+    <meta property="og:description" content="The problem with traditional Shiny deployments, and the component stack — ShinyProxy, Kubernetes, Redis, ingress-nginx — that solves it.">
+    <meta property="og:image" content="https://sumedhsankhe.github.io/assets/images/profile.png">
+    <meta property="article:published_time" content="2026-06-06">
+    <meta property="article:author" content="Sumedh R. Sankhe">
+    <meta property="article:tag" content="Kubernetes">
+    <meta property="article:tag" content="R Shiny">
+    <meta property="article:tag" content="ShinyProxy">
+    <meta property="article:tag" content="Docker">
+    <meta property="article:tag" content="DevOps">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Running R Shiny at Scale: Why Kubernetes Changes Everything">
+    <meta name="twitter:description" content="The problem with traditional Shiny deployments, and the component stack that solves it.">
+
+    <!-- Additional SEO -->
+    <meta name="robots" content="index, follow">
+
+    <!-- Google tag (gtag.js) - Consent-based loading -->
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      if (localStorage.getItem('cookieConsent') === 'accepted') {
+        const script = document.createElement('script');
+        script.async = true;
+        script.src = 'https://www.googletagmanager.com/gtag/js?id=G-ZB17TTEQRQ';
+        document.head.appendChild(script);
+        gtag('js', new Date());
+        gtag('config', 'G-ZB17TTEQRQ', {
+          'anonymize_ip': true,
+          'allow_google_signals': false,
+          'allow_ad_personalization_signals': false,
+          'cookie_flags': 'SameSite=None;Secure'
+        });
+      }
+    </script>
+
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="../../assets/css/styles.css">
+
+    <!-- Inline theme script to prevent FOUC -->
+    <script>
+        (function() {
+            try {
+                const validThemes = ['light', 'dark'];
+                const savedTheme = localStorage.getItem('theme');
+                const systemPrefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const theme = validThemes.includes(savedTheme) ? savedTheme : (systemPrefersDark ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', theme);
+                const savedColorblindMode = localStorage.getItem('colorblindMode');
+                if (savedColorblindMode === 'true') {
+                    document.documentElement.setAttribute('data-colorblind', 'true');
+                }
+            } catch (e) {
+                const systemPrefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.setAttribute('data-theme', systemPrefersDark ? 'dark' : 'light');
+            }
+        })();
+    </script>
+
+    <style>
+        .diagram-container {
+            margin: 2rem 0;
+            text-align: center;
+            overflow-x: auto;
+        }
+        .diagram-container svg {
+            max-width: 100%;
+            height: auto;
+        }
+        .blog-post-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            font-size: 0.95rem;
+        }
+        .blog-post-content th,
+        .blog-post-content td {
+            padding: 0.6rem 1rem;
+            border: 1px solid var(--border-color, #ddd);
+            text-align: left;
+        }
+        .blog-post-content th {
+            background: var(--card-bg, #f5f5f5);
+            font-weight: 600;
+        }
+        .series-nav {
+            display: flex;
+            gap: 1rem;
+            margin: 2rem 0;
+            padding: 1rem;
+            background: var(--card-bg, #f5f5f5);
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+        .series-nav a {
+            text-decoration: none;
+        }
+        .series-nav a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <a href="#main-content" class="skip-to-main">Skip to main content</a>
+
+    <nav>
+        <div class="nav-container">
+            <div class="nav-left">
+                <div class="logo">Sumedh R. Sankhe</div>
+                <div class="toggle-buttons">
+                    <button type="button" class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode" title="Toggle dark mode">
+                        <span id="themeIcon">◐</span>
+                    </button>
+                    <button type="button" class="colorblind-toggle" id="colorblindToggle" aria-label="Toggle colorblind-friendly mode" title="Colorblind-friendly colors">
+                        <span id="colorblindIcon">👁</span>
+                    </button>
+                </div>
+            </div>
+            <button type="button" class="menu-toggle" id="menuToggle" aria-label="Toggle menu" aria-expanded="false">
+                <span id="menuIcon">☰</span>
+            </button>
+            <ul class="nav-links" id="navLinks">
+                <li><a href="../../index.html">Home</a></li>
+                <li><a href="../../about.html">About</a></li>
+                <li><a href="../../projects.html">Projects</a></li>
+                <li><a href="../../skills.html">Skills</a></li>
+                <li><a href="../../blog.html" class="active" aria-current="page">Blog</a></li>
+                <li><a href="../../contact.html">Contact</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <main id="main-content">
+        <article class="blog-post">
+            <header class="blog-post-header">
+                <div class="blog-post-meta">
+                    <time datetime="2026-06-06">June 6, 2026</time>
+                    <span class="blog-post-separator">•</span>
+                    <span class="blog-post-read-time">13 min read</span>
+                </div>
+                <h1>Running R Shiny at Scale: Why Kubernetes Changes Everything</h1>
+                <p class="blog-post-subtitle">Part 1 of 3 — The problem with traditional Shiny deployments, and the component stack that solves it.</p>
+                <div class="blog-post-tags">
+                    <span class="blog-tag">Kubernetes</span>
+                    <span class="blog-tag">R Shiny</span>
+                    <span class="blog-tag">ShinyProxy</span>
+                    <span class="blog-tag">Docker</span>
+                    <span class="blog-tag">DevOps</span>
+                </div>
+            </header>
+
+            <div class="blog-post-content">
+                <p class="blog-intro">I spent the better part of a year trying to make R Shiny serve more than a handful of concurrent users reliably. This is the guide I wish I'd had at the start.</p>
+
+                <div class="series-nav">
+                    <strong>Series:</strong>
+                    <span>Part 1: Why Kubernetes? (you are here)</span>
+                    <span>·</span>
+                    <a href="./k8s-shiny-part-2-local-rig.html">Part 2: The Local Test Rig</a>
+                    <span>·</span>
+                    <a href="./k8s-shiny-part-3-azure-production.html">Part 3: Azure Production Cluster</a>
+                </div>
+
+                <h2 id="the-shiny-scaling-problem">The Promise and the Pain of Shiny</h2>
+
+                <p>R Shiny is one of the fastest ways to turn data analysis into a usable web application. A data scientist can go from a working R script to a shareable, interactive dashboard in an afternoon. That speed is genuinely remarkable.</p>
+
+                <p>But the moment an organization falls in love with a Shiny app and wants to share it broadly, a problem appears: <strong>Shiny was not designed to serve many concurrent users.</strong></p>
+
+                <p>At its core, a Shiny app runs inside a single R process. R is single-threaded. When one user clicks a button, their computation runs — and if two users click at the same time, one waits. This is not a bug in Shiny; it is a consequence of what R is. Shiny makes R accessible on the web, but it does not change R's concurrency model.</p>
+
+                <h3>What "at scale" actually means</h3>
+
+                <p>Scale for a Shiny application does not necessarily mean millions of users. It means:</p>
+
+                <ul>
+                    <li>More than a handful of <strong>concurrent</strong> users, each needing their own independent session</li>
+                    <li><strong>Isolation</strong> between users — one user's crash should not affect anyone else</li>
+                    <li><strong>Reproducibility</strong> — the app behaves the same for every user, every time</li>
+                    <li><strong>Maintainability</strong> — updating the app should not require coordinating with everyone currently using it</li>
+                </ul>
+
+                <p>Traditional solutions involve running multiple Shiny Server instances behind a load balancer, but this is difficult to manage, easy to misconfigure, and wastes resources (each instance is always on, whether users are present or not).</p>
+
+                <h2 id="containers">The Container Breakthrough</h2>
+
+                <p>Before Kubernetes, the key insight was <strong>containerization</strong>.</p>
+
+                <p>A container packages an application together with everything it needs to run: the R version, the exact package versions, the system libraries, the environment variables. The result is a single artifact — a Docker image — that behaves identically whether it runs on a developer's laptop or a server in a data center.</p>
+
+                <p>For Shiny, this is transformative:</p>
+
+                <table>
+                    <thead>
+                        <tr><th>Before containers</th><th>After containers</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>"Works on my machine"</td><td>One image, same behavior everywhere</td></tr>
+                        <tr><td>Manual dependency management</td><td>Dependencies locked in the image</td></tr>
+                        <tr><td>Upgrade = downtime</td><td>Build new image, swap when ready</td></tr>
+                        <tr><td>Shared R process</td><td>Each user can get their own container</td></tr>
+                    </tbody>
+                </table>
+
+                <p>But containers alone do not solve the orchestration problem: who decides where each container runs, how many run at once, what happens when one crashes, and how users connect to them?</p>
+
+                <h2 id="kubernetes">Kubernetes in Plain Language</h2>
+
+                <p>Kubernetes (often abbreviated K8s) is software for managing containers at scale. Think of it as an air traffic control system — it does not fly the planes, but it knows where every plane is, where it needs to go, and what to do when something goes wrong.</p>
+
+                <div class="diagram-container">
+                    <pre class="mermaid">
+graph TD
+    User["User's Browser"] --> Ingress["Ingress\n(Traffic Entry Point)"]
+    Ingress --> SP["ShinyProxy\n(Session Manager)"]
+    SP --> K8s["Kubernetes\n(Container Orchestrator)"]
+    K8s --> Pod1["Container\nUser A's Shiny Session"]
+    K8s --> Pod2["Container\nUser B's Shiny Session"]
+    K8s --> Pod3["Container\nUser C's Shiny Session"]
+
+    style K8s fill:#326ce5,color:#fff
+    style SP fill:#f4811f,color:#fff
+    style Ingress fill:#43bf91,color:#fff
+                    </pre>
+                </div>
+
+                <p>Key Kubernetes concepts, explained without jargon:</p>
+
+                <table>
+                    <thead>
+                        <tr><th>Term</th><th>Plain English</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><strong>Pod</strong></td><td>The smallest unit — one running container (or a tightly coupled group)</td></tr>
+                        <tr><td><strong>Node</strong></td><td>A virtual machine that runs pods</td></tr>
+                        <tr><td><strong>Cluster</strong></td><td>A group of nodes managed together</td></tr>
+                        <tr><td><strong>Namespace</strong></td><td>A logical partition inside a cluster (like folders in a filesystem)</td></tr>
+                        <tr><td><strong>Ingress</strong></td><td>The front door — routes external traffic to the right internal service</td></tr>
+                        <tr><td><strong>Deployment</strong></td><td>A declaration of what should be running and how many copies</td></tr>
+                    </tbody>
+                </table>
+
+                <p>Kubernetes continuously watches the declared state ("I want three copies of this container running") and reconciles it against reality ("right now only two are running — starting a third").</p>
+
+                <h2 id="shinyproxy">ShinyProxy: The Bridge Between Shiny and Kubernetes</h2>
+
+                <p>Kubernetes is a general-purpose orchestrator. It does not know anything about R, Shiny, or user sessions. To make Kubernetes useful for Shiny, we need a layer that understands both worlds.</p>
+
+                <p><a href="https://shinyproxy.io" target="_blank" rel="noopener noreferrer">ShinyProxy</a> is that layer. It is an open-source Java application that acts as a smart reverse proxy for Shiny apps. When a user authenticates and requests an app:</p>
+
+                <ol>
+                    <li>ShinyProxy checks if the user already has a running container for that app</li>
+                    <li>If not, it instructs Kubernetes to start one</li>
+                    <li>It proxies the user's WebSocket connection to that specific container</li>
+                    <li>When the user leaves or the session times out, ShinyProxy signals Kubernetes to stop the container</li>
+                </ol>
+
+                <p>This gives every user a fully isolated Shiny session with zero manual coordination.</p>
+
+                <div class="diagram-container">
+                    <pre class="mermaid">
+sequenceDiagram
+    participant U as User
+    participant SP as ShinyProxy
+    participant K as Kubernetes
+    participant C as Shiny Container
+
+    U->>SP: Open the dashboard
+    SP->>SP: Does this user have a container?
+    SP->>K: Start container for this user
+    K->>C: Container started
+    K->>SP: Container is ready
+    SP->>U: Proxying your connection...
+    U-->>C: Interactive Shiny session begins
+
+    Note over U,C: User works normally...
+
+    U->>SP: User closes browser
+    SP->>K: Stop container for this user
+    K->>C: Container stopped (resources freed)
+                    </pre>
+                </div>
+
+                <h3>What ShinyProxy adds to the picture</h3>
+
+                <ul>
+                    <li><strong>Authentication</strong>: integrates with identity providers (OIDC, OAuth2, LDAP) so only authorized users can launch apps</li>
+                    <li><strong>Authorization</strong>: different user groups can access different apps</li>
+                    <li><strong>Resource limits</strong>: each container gets bounded CPU and memory, protecting the cluster from runaway R processes</li>
+                    <li><strong>Audit trail</strong>: every session start and stop is logged</li>
+                </ul>
+
+                <h2 id="operator">The ShinyProxy Operator: Managing ShinyProxy Itself</h2>
+
+                <p>Running ShinyProxy inside Kubernetes introduces a meta-problem: how do you manage ShinyProxy's own lifecycle? How do you update it without dropping active user sessions?</p>
+
+                <p>This is solved by the <strong>ShinyProxy Operator</strong> — a Kubernetes controller that manages ShinyProxy instances. The operator watches a custom configuration resource (the ShinyProxy CR) and handles:</p>
+
+                <ul>
+                    <li>Starting and stopping ShinyProxy pods</li>
+                    <li>Rolling out configuration changes without interrupting active users</li>
+                    <li>Creating the right Kubernetes service accounts, roles, and networking rules</li>
+                </ul>
+
+                <div class="diagram-container">
+                    <pre class="mermaid">
+graph LR
+    CR["ShinyProxy\nConfiguration\n(Custom Resource)"] --> OP["ShinyProxy\nOperator"]
+    OP --> SP1["ShinyProxy\nInstance A"]
+    OP --> SP2["ShinyProxy\nInstance B\n(during update)"]
+    SP1 --> Pods["User Session\nContainers"]
+    SP2 --> Pods
+
+    style OP fill:#326ce5,color:#fff
+                    </pre>
+                </div>
+
+                <p>The operator pattern is a common Kubernetes idiom: instead of manually running commands to update configuration, you declare the desired state in a resource file, and a controller continuously reconciles toward it.</p>
+
+                <h2 id="redis">Redis: Keeping State Across ShinyProxy Instances</h2>
+
+                <p>When you run multiple ShinyProxy instances (for high availability or during updates), they need to share knowledge about which user has which container running. This shared state lives in <strong>Redis</strong>, an in-memory data store.</p>
+
+                <p>The setup uses Redis Sentinel — a mode where multiple Redis instances elect a leader and automatically handle failover if the leader becomes unavailable. This means ShinyProxy's session data survives even if one Redis node goes down.</p>
+
+                <div class="diagram-container">
+                    <pre class="mermaid">
+graph TD
+    SP["ShinyProxy"] --> RS["Redis Sentinel\n(Cluster)"]
+    RS --> R1["Redis Primary\n(Writes)"]
+    RS --> R2["Redis Replica 1\n(Reads)"]
+    RS --> R3["Redis Replica 2\n(Reads)"]
+    R1 -.->|Replication| R2
+    R1 -.->|Replication| R3
+
+    style RS fill:#dc382d,color:#fff
+    style R1 fill:#dc382d,color:#fff
+    style R2 fill:#dc382d,color:#fff
+    style R3 fill:#dc382d,color:#fff
+                    </pre>
+                </div>
+
+                <h2 id="full-stack">The Full Stack at a Glance</h2>
+
+                <p>Putting it all together, the complete component picture looks like this:</p>
+
+                <div class="diagram-container">
+                    <pre class="mermaid">
+graph TD
+    Internet["Internet"] --> DNS["DNS\nyourdomain.com"]
+    DNS --> Ingress["ingress-nginx\n(Reverse Proxy + TLS)"]
+    Ingress --> SP["ShinyProxy\n(Session and Auth)"]
+    SP --> Redis["Redis Sentinel\n(Session State)"]
+    SP --> IDP["Identity Provider\n(OIDC / OAuth2)"]
+    SP --> Pods["Shiny App Containers\n(one per user session)"]
+    Ingress --> Cert["cert-manager\n(TLS Certificate Automation)"]
+
+    subgraph K8s["Kubernetes Cluster"]
+        Ingress
+        SP
+        Redis
+        Pods
+        Cert
+    end
+
+    style SP fill:#f4811f,color:#fff
+    style Redis fill:#dc382d,color:#fff
+    style Ingress fill:#43bf91,color:#fff
+                    </pre>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr><th>Component</th><th>Role</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><strong>ingress-nginx</strong></td><td>Accepts HTTPS traffic, terminates TLS, routes to ShinyProxy</td></tr>
+                        <tr><td><strong>cert-manager</strong></td><td>Automatically provisions and renews TLS certificates (via Let's Encrypt)</td></tr>
+                        <tr><td><strong>ShinyProxy</strong></td><td>Authenticates users, manages one container per session</td></tr>
+                        <tr><td><strong>ShinyProxy Operator</strong></td><td>Manages ShinyProxy's own lifecycle inside Kubernetes</td></tr>
+                        <tr><td><strong>Redis Sentinel</strong></td><td>Stores ShinyProxy session state; survives node failures</td></tr>
+                        <tr><td><strong>Shiny containers</strong></td><td>Isolated R processes, one per active user session</td></tr>
+                    </tbody>
+                </table>
+
+                <h2 id="posit-connect">Why Not Just Use Posit Connect?</h2>
+
+                <p>A fair question. <a href="https://posit.co/products/enterprise/connect/" target="_blank" rel="noopener noreferrer">Posit Connect</a> (formerly RStudio Connect) is a commercial product that also solves the Shiny scaling problem. If budget allows and operational simplicity is the priority, it is a legitimate choice.</p>
+
+                <p>The Kubernetes path makes sense when:</p>
+
+                <ul>
+                    <li>You need <strong>full control</strong> over the infrastructure (networking, secrets, compute)</li>
+                    <li>You are <strong>already running Kubernetes</strong> for other services</li>
+                    <li>You want <strong>multi-cloud portability</strong> — no vendor lock-in</li>
+                    <li>You have <strong>specific compliance requirements</strong> around where data lives</li>
+                    <li>You want to co-locate the Shiny app with other containerized services</li>
+                </ul>
+
+                <p>None of these are universal arguments. Kubernetes adds real operational complexity. The point is knowing what you're trading and why.</p>
+
+                <h2 id="whats-next">What's Next</h2>
+
+                <p>Part 1 established the <em>why</em>: Shiny's concurrency limitations, containerization as the solution, and the component stack (ShinyProxy, Kubernetes, Redis, ingress-nginx, cert-manager) that makes it work.</p>
+
+                <p><strong><a href="./k8s-shiny-part-2-local-rig.html">Part 2</a></strong> covers building a local Kubernetes cluster to validate this entire stack on your laptop before spending a dollar on cloud infrastructure.</p>
+
+                <p><strong><a href="./k8s-shiny-part-3-azure-production.html">Part 3</a></strong> covers deploying the validated stack to Azure Kubernetes Service for production use.</p>
+
+                <hr>
+
+                <p><strong>Questions or feedback?</strong> Connect with me on <a href="https://linkedin.com/in/sankhe" target="_blank" rel="noopener noreferrer">LinkedIn</a>.</p>
+
+                <p><strong>Further reading:</strong></p>
+                <ul>
+                    <li><a href="https://shinyproxy.io" target="_blank" rel="noopener noreferrer">ShinyProxy documentation</a></li>
+                    <li><a href="https://github.com/openanalytics/shinyproxy-operator" target="_blank" rel="noopener noreferrer">ShinyProxy Operator on GitHub</a></li>
+                    <li><a href="https://kubernetes.io/docs/concepts/" target="_blank" rel="noopener noreferrer">Kubernetes concepts overview</a></li>
+                </ul>
+            </div>
+
+            <div class="blog-post-footer">
+                <a href="../../blog.html" class="blog-back-link">← Back to Blog</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Sumedh R. Sankhe. All rights reserved.</p>
+    </footer>
+
+    <div id="cookieConsent" class="cookie-consent" role="dialog" aria-live="polite" aria-label="Cookie consent">
+        <div class="cookie-consent-content">
+            <div class="cookie-consent-text">
+                <p>
+                    I use cookies and analytics to improve your experience and understand how you use this site.
+                    By accepting, you consent to the use of Google Analytics with IP anonymization.
+                    <a href="../../privacy.html">Learn more</a>
+                </p>
+            </div>
+            <div class="cookie-consent-buttons">
+                <button id="cookieAccept" class="cookie-btn cookie-btn-accept" aria-label="Accept cookies">Accept</button>
+                <button id="cookieDecline" class="cookie-btn cookie-btn-decline" aria-label="Decline cookies">Decline</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mermaid diagrams -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+        const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default';
+        mermaid.initialize({ startOnLoad: true, theme: theme, securityLevel: 'loose' });
+    </script>
+
+    <script src="../../assets/js/script.js"></script>
+</body>
+</html>
