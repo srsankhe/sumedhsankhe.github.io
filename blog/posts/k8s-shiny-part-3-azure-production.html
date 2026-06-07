@@ -237,7 +237,7 @@ graph TD
 
                 <h3>Virtual Machine Sizing and maxPods</h3>
 
-                <p>VM sizing is driven by two constraints: the number of pods a node can schedule (<code>maxPods</code>, set at pool creation time and <strong>immutable after creation</strong>) and the memory each pod consumes.</p>
+                <p>VM sizing is driven by two constraints: the number of pods a node can schedule (<code>maxPods</code>, set at pool creation time and <strong>not changeable without replacing the pool</strong>) and the memory each pod consumes.</p>
 
                 <p>Each Shiny user session typically uses 500MB–2GB of RAM depending on data size and application complexity. The goal is to choose a VM size where both the memory ceiling and the <code>maxPods</code> ceiling are reached at roughly the same workload. Measure this empirically on the local rig before committing — changing <code>maxPods</code> in production requires a blue/green pool rotation.</p>
 
@@ -259,7 +259,7 @@ flowchart LR
                     </pre>
                 </div>
 
-                <p>A key detail: <strong>the image tag is static</strong> (e.g., <code>prod</code>), but the image digest behind that tag changes with every CI push. ShinyProxy is configured with <code>imagePullPolicy: Always</code>, which means it checks for a new image every time it starts a Shiny container. This gives you <strong>zero-downtime rolling deploys for free</strong>:</p>
+                <p>A key detail: <strong>the image tag is static</strong> (e.g., <code>prod</code>), but the image digest behind that tag changes with every CI push. ShinyProxy is configured with <code>imagePullPolicy: Always</code>, which means it checks for a new image every time it starts a Shiny container. This gives you deploys without a maintenance window:</p>
 
                 <ul>
                     <li>Existing user sessions keep running on the old image</li>
@@ -267,6 +267,10 @@ flowchart LR
                     <li>No orchestrated deployment step needed</li>
                     <li>No user-visible interruption</li>
                 </ul>
+
+                <p>The one caveat: existing users don't get the new version until their current session ends and they start a new one. For a bug fix that matters, you may want to let users know to reload.</p>
+
+                <p>A second caveat worth knowing at scale: <code>imagePullPolicy: Always</code> means every new session start hits ACR to check the manifest, even if the image hasn't changed. At low session volumes this is negligible. At high churn — many users starting sessions in a short window — the ACR round-trips add latency to session startup and show up in your ACR egress costs. At that point you'd want to look at image pre-pulling or a more explicit tag strategy.</p>
 
                 <p>AKS nodes authenticate to ACR via a role assignment at the Azure RBAC level — the AKS cluster's managed identity gets the <code>AcrPull</code> role on the ACR resource. No credentials to rotate, no secrets to store.</p>
 
@@ -320,74 +324,15 @@ sequenceDiagram
 
                 <p>A staging slot on the identity provider is used for non-production clusters — authentication flows can be tested without affecting production user credentials or audit logs. ShinyProxy's authorization model allows per-app access control: different user groups can access different apps, and unauthorized users see an access-denied page rather than having a pod started for them.</p>
 
-                <h2 id="networking">Networking: From Public Internet to Shiny Pod</h2>
+                <p>The most common first-day mistake: the redirect URI registered in the identity provider must exactly match what ShinyProxy sends — protocol, domain, path, trailing slash included. A mismatch produces an error at the IdP that doesn't mention ShinyProxy at all. I've seen this waste hours because the error message points nowhere useful.</p>
 
-                <p>The networking path from a user's browser to their Shiny container traverses several layers:</p>
+                <h2 id="networking">Networking</h2>
 
-                <div class="diagram-container">
-                    <pre class="mermaid">
-flowchart TD
-    U["User browser"]
-    DNS["DNS\nyourdomain.com to public IP"]
-    PIP["Azure Public IP\nstatic"]
-    LB["Azure Load Balancer\nmanaged by AKS"]
-    NG["ingress-nginx\nrunning in cluster"]
-    SP["ShinyProxy\nrunning in cluster"]
-    P["Shiny Pod\nuser's container"]
+                <p>A static public IP is reserved in Azure and tied to your DNS record — if the cluster is ever rebuilt, the same IP reattaches and nothing breaks for users. Traffic flows from DNS through an Azure Load Balancer into ingress-nginx, which terminates TLS and forwards to ShinyProxy. The one configuration detail that matters most for Shiny: every layer must be configured to keep long-lived WebSocket connections open, not close them after a short idle period. Get that wrong and users see phantom disconnects with no obvious error. The Azure Load Balancer's default TCP idle timeout is 4 minutes — well under a typical Shiny session. You need to raise it on both sides: <code>service.beta.kubernetes.io/azure-load-balancer-tcp-idle-timeout</code> on the LoadBalancer Service (value in minutes), and <code>nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"</code> on the ingress. Raising only the nginx side doesn't prevent Azure from dropping the connection underneath it. Neither is mentioned prominently in the AKS getting-started documentation.</p>
 
-    U -->|"HTTPS request"| DNS
-    DNS --> PIP
-    PIP --> LB
-    LB -->|"TCP passthrough"| NG
-    NG -->|"TLS termination"| SP
-    SP -->|"WebSocket proxy"| P
+                <h2 id="observability">Observability</h2>
 
-    style PIP fill:#0078d4,color:#fff
-    style LB fill:#0078d4,color:#fff
-    style NG fill:#43bf91,color:#fff
-    style SP fill:#f4811f,color:#fff
-                    </pre>
-                </div>
-
-                <p>A <strong>static public IP</strong> is reserved in Azure before cluster creation. If the cluster is destroyed and recreated, the same IP can be reattached, preserving the DNS mapping.</p>
-
-                <p><strong>WebSocket handling</strong> is the critical piece for Shiny. Every layer — the load balancer, ingress-nginx, ShinyProxy — must handle long-lived WebSocket connections without premature termination. The key ingress-nginx annotations:</p>
-
-                <pre><code>nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"</code></pre>
-
-                <p>These tell nginx to keep WebSocket connections alive for up to an hour of inactivity. The right value depends on your application's expected session length and any upstream timeout (corporate proxies, CDN layers) that might close connections earlier.</p>
-
-                <h2 id="observability">Observability: Knowing What's Happening</h2>
-
-                <p>A production Kubernetes cluster without observability is a black box. The monitoring setup uses Azure's native tooling:</p>
-
-                <div class="diagram-container">
-                    <pre class="mermaid">
-graph TD
-    Cluster["AKS Cluster\nall pods"] --> LAW["Log Analytics Workspace"]
-
-    LAW --> KPI["KubePodInventory\npod state, restarts, scheduling"]
-    LAW --> CL["ContainerLogV2\napplication stdout and stderr"]
-    LAW --> Alerts["Azure Monitor Alerts"]
-
-    Alerts --> Email["Email notification"]
-    Alerts --> Webhook["Webhook action group"]
-
-    style LAW fill:#0078d4,color:#fff
-    style Alerts fill:#e74c3c,color:#fff
-                    </pre>
-                </div>
-
-                <p>Container Insights v2 streams pod logs and metrics from the cluster to a Log Analytics Workspace (LAW). Two tables are particularly useful:</p>
-
-                <ul>
-                    <li><strong>KubePodInventory</strong>: pod state transitions, restart counts, scheduling decisions — where you look to understand pod lifecycle behavior</li>
-                    <li><strong>ContainerLogV2</strong>: everything Shiny and ShinyProxy write to stdout/stderr — R errors, authentication failures, session lifecycle events</li>
-                </ul>
-
-                <p>Alerts are configured on specific conditions: ShinyProxy pod restart count above threshold, Shiny pod count exceeding expected baseline, node memory pressure. KQL (Kusto Query Language) is used to query the tables and power the alerts.</p>
+                <p>Azure's Container Insights streams every pod's logs and lifecycle events into a Log Analytics Workspace. From there you can query pod restarts, session start/stop events, R-side errors, and authentication failures — and wire alerts to fire when something crosses a threshold. For a Shiny cluster this matters more than for typical web apps because the session lifecycle is stateful: you need to know when a pod was stopped unexpectedly, not just that an HTTP request failed.</p>
 
                 <h2 id="deploy-flow">The Deployment Flow End to End</h2>
 
@@ -419,30 +364,6 @@ flowchart TD
 
                 <p>No manual deployment step. No scheduled maintenance window. No coordinated rollout. The new code simply becomes the image new sessions use, while existing sessions continue undisturbed.</p>
 
-                <h2 id="iac">Infrastructure as Code</h2>
-
-                <p>All the Azure resources — the AKS cluster, the ACR, the Key Vault, the Log Analytics Workspace, the public IP, the role assignments — are defined in code. This gives you reproducibility, auditability, and disaster recovery.</p>
-
-                <p>The Kubernetes manifests (ShinyProxy configuration, Redis StatefulSet, ingress rules) are managed with <strong>Kustomize</strong> — a tool that lets you define a base configuration and layer environment-specific differences on top without forking the base:</p>
-
-                <div class="diagram-container">
-                    <pre class="mermaid">
-graph TD
-    Base["bases/\nshared config"] --> OvProd["overlays/production/\nprod-specific values"]
-    Base --> OvTest["overlays/test/\ntest-specific values"]
-    Base --> OvLocal["local-rig/\nlocal values"]
-
-    OvProd -->|"kustomize build"| ProdManifests["Production manifests\napplied to AKS"]
-    OvTest -->|"kustomize build"| TestManifests["Test manifests\napplied to test cluster"]
-    OvLocal -->|"kustomize build"| LocalManifests["Local manifests\napplied to k3s"]
-
-    style Base fill:#e8f4f8
-    style OvProd fill:#d4edda
-    style OvTest fill:#fff3cd
-    style OvLocal fill:#f8d7da
-                    </pre>
-                </div>
-
                 <h2 id="production-ready">What "Production-Ready" Actually Means</h2>
 
                 <p>After following this path — local rig validation, then Azure production deployment — "production-ready" means something specific:</p>
@@ -459,18 +380,17 @@ graph TD
                         <tr><td><strong>Authenticated access</strong></td><td>OIDC integration; per-app authorization rules</td></tr>
                         <tr><td><strong>TLS everywhere</strong></td><td>cert-manager + Let's Encrypt; auto-renewed</td></tr>
                         <tr><td><strong>Observability</strong></td><td>Container Insights v2 → Log Analytics; alerts on critical conditions</td></tr>
-                        <tr><td><strong>Reproducible infrastructure</strong></td><td>Bicep (Azure resources) + Kustomize (K8s manifests) in version control</td></tr>
                         <tr><td><strong>Validated upgrades</strong></td><td>All changes proven on local rig before production</td></tr>
                     </tbody>
                 </table>
 
                 <h2 id="closing">Closing Thoughts</h2>
 
-                <p>The combination of ShinyProxy, Kubernetes, and Azure takes a technology that was designed for individual R scripts and makes it capable of serving many users reliably, securely, and with proper operational hygiene.</p>
+                <p>When I started this, the goal was straightforward: make a Shiny application serve more than a handful of users without falling over. What I didn't anticipate was how much of the work would be invisible — the timeout that silently drops sessions, the OIDC redirect URI that produces a useless error, the maxPods value that can't be changed without rebuilding the pool. None of those are in the getting-started guides.</p>
 
-                <p>The path is not trivial — node pool sizing, WebSocket timeout tuning, OIDC integration, and Redis cluster management each have real complexity. But each complexity has a manageable solution, and the local rig discipline means most of that complexity is resolved before it touches production.</p>
+                <p>One category of disconnect that drove a lot of this work turned out to be Azure Front Door not having session affinity enabled. Redis handles session state — which user maps to which container — but it doesn't control WebSocket connection routing. Without session affinity at the AFD layer, the WebSocket upgrade request could land on a different ShinyProxy instance than the one handling the active connection, breaking the upgrade handshake regardless of what Redis knows. Months of investigation, a config change to fix.</p>
 
-                <p>The result is a Shiny deployment that can be handed off to an operations team — or a well-configured CI/CD pipeline — and trusted to run reliably.</p>
+                <p>There's still a Redis CVE (CVE-2025-49844) in the backlog. The prod node topology is messier than the test cluster.</p>
 
                 <hr>
 
@@ -480,7 +400,6 @@ graph TD
                 <ul>
                     <li><a href="https://learn.microsoft.com/en-us/azure/aks/" target="_blank" rel="noopener noreferrer">Azure Kubernetes Service documentation</a></li>
                     <li><a href="https://learn.microsoft.com/en-us/azure/key-vault/" target="_blank" rel="noopener noreferrer">Azure Key Vault documentation</a></li>
-                    <li><a href="https://kustomize.io" target="_blank" rel="noopener noreferrer">Kustomize</a> — Kubernetes configuration management</li>
                     <li><a href="https://shinyproxy.io" target="_blank" rel="noopener noreferrer">ShinyProxy documentation</a></li>
                 </ul>
             </div>

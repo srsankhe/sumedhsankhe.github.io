@@ -170,7 +170,7 @@
             </header>
 
             <div class="blog-post-content">
-                <p class="blog-intro">Cloud infrastructure mistakes are expensive in ways that are hard to anticipate. A local test rig catches 80% of them before they cost a dollar.</p>
+                <p class="blog-intro">Cloud infrastructure mistakes are expensive in ways that are hard to anticipate. A local test rig catches most configuration mistakes before they cost a dollar.</p>
 
                 <div class="series-nav">
                     <strong>Series:</strong>
@@ -262,7 +262,7 @@ graph TD
                     </pre>
                 </div>
 
-                <p>A few things worth noting:</p>
+                <p>Three choices here that differ from a typical local setup and are worth explaining:</p>
 
                 <p><strong>TLS is still present.</strong> The temptation is to skip TLS locally ("it's just a test"). Don't. ShinyProxy uses WebSockets, and WebSocket behavior over plain HTTP differs from HTTPS in subtle ways that matter. cert-manager issues self-signed certificates locally; the browser warns, but the stack is exercised correctly.</p>
 
@@ -298,7 +298,7 @@ flowchart TD
                     </pre>
                 </div>
 
-                <p>This workflow caught real issues before they reached production: configuration property names changed between ShinyProxy versions, Redis client compatibility differences, ingress annotation syntax changes across ingress-nginx versions. Each would have caused an outage if found first in production.</p>
+                <p>This workflow caught real issues before they reached production. Upgrading from ShinyProxy 3.0.2 to 3.2.4, the session timeout properties were silently renamed — <code>proxy.test-timeout</code> became <code>proxy.container-wait-timeout</code> and <code>proxy.app-init-timeout</code> became <code>proxy.container-wait-time</code>. Nothing in the changelog called this out prominently. The rig surfaced it as a pod-start failure; production would have surfaced it as users unable to launch apps. Same story with ingress-nginx annotation syntax across major versions. These are not the kinds of things you find in a diff.</p>
 
                 <h2 id="maxpods">Node Resource Planning: The maxPods Problem</h2>
 
@@ -393,8 +393,6 @@ flowchart LR
                 </div>
 
                 <h2 id="limits">What the Local Rig Cannot Tell You</h2>
-
-                <p>Being honest about limitations matters as much as being enthusiastic about capabilities.</p>
 
                 <p><strong>Performance at scale:</strong> A laptop cluster cannot tell you how 50 concurrent Shiny sessions will perform. It can tell you that sessions work correctly; it cannot tell you about latency under load.</p>
 

@@ -169,7 +169,7 @@
             </header>
 
             <div class="blog-post-content">
-                <p class="blog-intro">I spent the better part of a year trying to make R Shiny serve more than a handful of concurrent users reliably. This is the guide I wish I'd had at the start.</p>
+                <p class="blog-intro">I was the developer of a Shiny application. At some point, keeping the cluster it ran on alive became part of my job too — without much documentation on how any of it was set up, and with the cluster itself not having been actively touched in roughly three years. This is what I learned over the next few months.</p>
 
                 <div class="series-nav">
                     <strong>Series:</strong>
@@ -416,7 +416,7 @@ graph TD
                     <li>You want to co-locate the Shiny app with other containerized services</li>
                 </ul>
 
-                <p>None of these are universal arguments. Kubernetes adds real operational complexity. The point is knowing what you're trading and why.</p>
+                <p>None of these are universal arguments. Kubernetes adds real operational complexity — I'd estimate the stack described in this series takes 1.5–2 engineers to operate properly, which Posit Connect largely avoids. The point is knowing what you're trading and why.</p>
 
                 <h2 id="whats-next">What's Next</h2>
 
