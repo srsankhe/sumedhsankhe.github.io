@@ -7,7 +7,7 @@
     <meta name="author" content="Sumedh R. Sankhe">
     <meta name="keywords" content="Kubernetes, AKS, Azure, R, Shiny, ShinyProxy, Docker, ACR, Key Vault, OIDC, DevOps">
     <title>Going to Production: Azure Kubernetes Service for R Shiny | Sumedh R. Sankhe</title>
-    <link rel="icon" type="image/svg+xml" href="../../assets/images/favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="../../favicon.svg">
 
     <!-- Canonical URL -->
     <link rel="canonical" content="https://sumedhsankhe.github.io/blog/posts/k8s-shiny-part-3-azure-production.html">
@@ -17,7 +17,7 @@
     <meta property="og:url" content="https://sumedhsankhe.github.io/blog/posts/k8s-shiny-part-3-azure-production.html">
     <meta property="og:title" content="Going to Production: Azure Kubernetes Service for R Shiny">
     <meta property="og:description" content="AKS node pools, ACR image delivery, Key Vault secrets, OIDC auth, Log Analytics monitoring, and zero-downtime deploys for a production Shiny cluster.">
-    <meta property="og:image" content="https://sumedhsankhe.github.io/assets/images/profile.png">
+    <meta property="og:image" content="https://sumedhsankhe.github.io/profile.png">
     <meta property="article:published_time" content="2026-06-06">
     <meta property="article:author" content="Sumedh R. Sankhe">
     <meta property="article:tag" content="Kubernetes">
@@ -54,7 +54,7 @@
     </script>
 
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="../../assets/css/styles.css">
+    <link rel="stylesheet" href="../../styles.css">
 
     <!-- Inline theme script to prevent FOUC -->
     <script>
@@ -116,7 +116,7 @@
                     <span class="blog-post-read-time">14 min read</span>
                 </div>
                 <h1>Going to Production: Azure Kubernetes Service for R Shiny</h1>
-                <p class="blog-post-subtitle">Part 3 of 3 — AKS node pools, container registry, Key Vault secrets, OIDC authentication, Log Analytics monitoring, and zero-downtime deployments.</p>
+                <p class="blog-post-subtitle">Part 3 of 3: AKS node pools, container registry, Key Vault secrets, OIDC authentication, Log Analytics monitoring, and zero-downtime deployments.</p>
                 <div class="blog-post-tags">
                     <span class="blog-tag">Kubernetes</span>
                     <span class="blog-tag">Azure</span>
@@ -140,7 +140,7 @@
 
                 <h2 id="local-to-cloud">From Local to Cloud</h2>
 
-                <p>Most of the Kubernetes manifests — the ShinyProxy CR, the Redis StatefulSet, the ingress rules — are identical between local and production. What differs is the set of Azure resources surrounding the cluster.</p>
+                <p>Most of the Kubernetes manifests (the ShinyProxy CR, the Redis StatefulSet, the ingress rules) are identical between local and production. What differs is the set of Azure resources surrounding the cluster.</p>
 
                 <div class="diagram-container">
                     <div class="mermaid">
@@ -161,13 +161,13 @@ flowchart LR
         A5["Log Analytics Workspace"]
     end
 
-    style Azure fill:#e8f0ff,stroke:#0078d4
+    style Azure fill:#e8f0ff,stroke:#0078d4,color:#1a1a1a
                     </div>
                 </div>
 
                 <h2 id="aks">Azure Kubernetes Service (AKS)</h2>
 
-                <p>AKS is Azure's managed Kubernetes offering. "Managed" means Microsoft operates the Kubernetes control plane — the API server, etcd, the scheduler — and is responsible for its availability. You are responsible for the node pools (the virtual machines that run your workloads) and everything running inside the cluster.</p>
+                <p>AKS is Azure's managed Kubernetes offering. "Managed" means Microsoft operates the Kubernetes control plane (the API server, etcd, the scheduler) and is responsible for its availability. You are responsible for the node pools (the virtual machines that run your workloads) and everything running inside the cluster.</p>
 
                 <h3>Node Pool Separation</h3>
 
@@ -196,7 +196,7 @@ graph TD
 
                 <p>VM sizing is driven by two constraints: the number of pods a node can schedule (<code>maxPods</code>, set at pool creation time and <strong>not changeable without replacing the pool</strong>) and the memory each pod consumes.</p>
 
-                <p>Each Shiny user session typically uses 500MB–2GB of RAM depending on data size and application complexity. The goal is to choose a VM size where both the memory ceiling and the <code>maxPods</code> ceiling are reached at roughly the same workload. Measure this empirically on the local rig before committing — changing <code>maxPods</code> in production requires a blue/green pool rotation.</p>
+                <p>Each Shiny user session typically uses 500MB–2GB of RAM depending on data size and application complexity. The goal is to choose a VM size where both the memory ceiling and the <code>maxPods</code> ceiling are reached at roughly the same workload. Measure this empirically on the local rig before committing, since changing <code>maxPods</code> in production requires a blue/green pool rotation.</p>
 
                 <h2 id="acr">Azure Container Registry (ACR)</h2>
 
@@ -227,9 +227,9 @@ flowchart LR
 
                 <p>The one caveat: existing users don't get the new version until their current session ends and they start a new one. For a bug fix that matters, you may want to let users know to reload.</p>
 
-                <p>A second caveat worth knowing at scale: <code>imagePullPolicy: Always</code> means every new session start hits ACR to check the manifest, even if the image hasn't changed. At low session volumes this is negligible. At high churn — many users starting sessions in a short window — the ACR round-trips add latency to session startup and show up in your ACR egress costs. At that point you'd want to look at image pre-pulling or a more explicit tag strategy.</p>
+                <p>A second caveat worth knowing at scale: <code>imagePullPolicy: Always</code> means every new session start hits ACR to check the manifest, even if the image hasn't changed. At low session volumes this is negligible. At high churn, with many users starting sessions in a short window, the ACR round-trips add latency to session startup and show up in your ACR egress costs. At that point you'd want to look at image pre-pulling or a more explicit tag strategy.</p>
 
-                <p>AKS nodes authenticate to ACR via a role assignment at the Azure RBAC level — the AKS cluster's managed identity gets the <code>AcrPull</code> role on the ACR resource. No credentials to rotate, no secrets to store.</p>
+                <p>AKS nodes authenticate to ACR via a role assignment at the Azure RBAC level: the AKS cluster's managed identity gets the <code>AcrPull</code> role on the ACR resource. No credentials to rotate, no secrets to store.</p>
 
                 <h2 id="key-vault">Azure Key Vault (Secrets Management)</h2>
 
@@ -249,7 +249,7 @@ flowchart TD
                     </div>
                 </div>
 
-                <p>Key properties of this setup: secrets never appear in Kubernetes manifests or environment files; they are fetched at pod start time. Rotation is straightforward — update the value in Key Vault, and the next pod start picks up the new value. Access is auditable — Key Vault logs every read.</p>
+                <p>Key properties of this setup: secrets never appear in Kubernetes manifests or environment files; they are fetched at pod start time. Rotation is straightforward: update the value in Key Vault, and the next pod start picks up the new value. Access is auditable: Key Vault logs every read.</p>
 
                 <h2 id="oidc">Authentication: OIDC Integration</h2>
 
@@ -279,21 +279,21 @@ sequenceDiagram
                     </div>
                 </div>
 
-                <p>A staging slot on the identity provider is used for non-production clusters — authentication flows can be tested without affecting production user credentials or audit logs. ShinyProxy's authorization model allows per-app access control: different user groups can access different apps, and unauthorized users see an access-denied page rather than having a pod started for them.</p>
+                <p>A staging slot on the identity provider is used for non-production clusters so authentication flows can be tested without affecting production user credentials or audit logs. ShinyProxy's authorization model allows per-app access control: different user groups can access different apps, and unauthorized users see an access-denied page rather than having a pod started for them.</p>
 
-                <p>The most common first-day mistake: the redirect URI registered in the identity provider must exactly match what ShinyProxy sends — protocol, domain, path, trailing slash included. A mismatch produces an error at the IdP that doesn't mention ShinyProxy at all. I've seen this waste hours because the error message points nowhere useful.</p>
+                <p>The most common first-day mistake: the redirect URI registered in the identity provider must exactly match what ShinyProxy sends, protocol, domain, path, trailing slash included. A mismatch produces an error at the IdP that doesn't mention ShinyProxy at all. I've seen this waste hours because the error message points nowhere useful.</p>
 
                 <h2 id="networking">Networking</h2>
 
-                <p>A static public IP is reserved in Azure and tied to your DNS record — if the cluster is ever rebuilt, the same IP reattaches and nothing breaks for users. Traffic flows from DNS through an Azure Load Balancer into ingress-nginx, which terminates TLS and forwards to ShinyProxy. The one configuration detail that matters most for Shiny: every layer must be configured to keep long-lived WebSocket connections open, not close them after a short idle period. Get that wrong and users see phantom disconnects with no obvious error. The Azure Load Balancer's default TCP idle timeout is 4 minutes — well under a typical Shiny session. You need to raise it on both sides: <code>service.beta.kubernetes.io/azure-load-balancer-tcp-idle-timeout</code> on the LoadBalancer Service (value in minutes), and <code>nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"</code> on the ingress. Raising only the nginx side doesn't prevent Azure from dropping the connection underneath it. Neither is mentioned prominently in the AKS getting-started documentation.</p>
+                <p>A static public IP is reserved in Azure and tied to your DNS record. If the cluster is ever rebuilt, the same IP reattaches and nothing breaks for users. Traffic flows from DNS through an Azure Load Balancer into ingress-nginx, which terminates TLS and forwards to ShinyProxy. The one configuration detail that matters most for Shiny: every layer must be configured to keep long-lived WebSocket connections open, not close them after a short idle period. Get that wrong and users see phantom disconnects with no obvious error. The Azure Load Balancer's default TCP idle timeout is 4 minutes, well under a typical Shiny session. You need to raise it on both sides: <code>service.beta.kubernetes.io/azure-load-balancer-tcp-idle-timeout</code> on the LoadBalancer Service (value in minutes), and <code>nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"</code> on the ingress. Raising only the nginx side doesn't prevent Azure from dropping the connection underneath it. Neither is mentioned prominently in the AKS getting-started documentation.</p>
 
                 <h2 id="observability">Observability</h2>
 
-                <p>Azure's Container Insights streams every pod's logs and lifecycle events into a Log Analytics Workspace. From there you can query pod restarts, session start/stop events, R-side errors, and authentication failures — and wire alerts to fire when something crosses a threshold. For a Shiny cluster this matters more than for typical web apps because the session lifecycle is stateful: you need to know when a pod was stopped unexpectedly, not just that an HTTP request failed.</p>
+                <p>Azure's Container Insights streams every pod's logs and lifecycle events into a Log Analytics Workspace. From there you can query pod restarts, session start/stop events, R-side errors, and authentication failures, and wire alerts to fire when something crosses a threshold. For a Shiny cluster this matters more than for typical web apps because the session lifecycle is stateful: you need to know when a pod was stopped unexpectedly, not just that an HTTP request failed.</p>
 
                 <h2 id="deploy-flow">The Deployment Flow End to End</h2>
 
-                <p>Putting it all together — from "developer merges a pull request" to "users see the new version":</p>
+                <p>Putting it all together, from "developer merges a pull request" to "users see the new version":</p>
 
                 <div class="diagram-container">
                     <div class="mermaid">
@@ -313,9 +313,9 @@ flowchart TD
 
     style CI fill:#2088ff,color:#fff
     style Push fill:#0078d4,color:#fff
-    style NewPod fill:#d4edda
-    style Fail fill:#f8d7da
-    style Note fill:#fff3cd
+    style NewPod fill:#d4edda,color:#1a1a1a
+    style Fail fill:#f8d7da,color:#1a1a1a
+    style Note fill:#fff3cd,color:#1a1a1a
                     </div>
                 </div>
 
@@ -323,7 +323,7 @@ flowchart TD
 
                 <h2 id="production-ready">What "Production-Ready" Actually Means</h2>
 
-                <p>After following this path — local rig validation, then Azure production deployment — "production-ready" means something specific:</p>
+                <p>After following this path (local rig validation, then Azure production deployment), "production-ready" means something specific:</p>
 
                 <table class="blog-table">
                     <thead>
@@ -343,11 +343,9 @@ flowchart TD
 
                 <h2 id="closing">Closing Thoughts</h2>
 
-                <p>When I started this, the goal was straightforward: make a Shiny application serve more than a handful of users without falling over. What I didn't anticipate was how much of the work would be invisible — the timeout that silently drops sessions, the OIDC redirect URI that produces a useless error, the maxPods value that can't be changed without rebuilding the pool. None of those are in the getting-started guides.</p>
+                <p>When I started this, the goal was straightforward: make a Shiny application serve more than a handful of users without falling over. What I didn't anticipate was how much of the work would be invisible: the timeout that silently drops sessions, the OIDC redirect URI that produces a useless error, the maxPods value that can't be changed without rebuilding the pool. None of those are in the getting-started guides.</p>
 
-                <p>One category of disconnect that drove a lot of this work turned out to be Azure Front Door not having session affinity enabled. Redis handles session state — which user maps to which container — but it doesn't control WebSocket connection routing. Without session affinity at the AFD layer, the WebSocket upgrade request could land on a different ShinyProxy instance than the one handling the active connection, breaking the upgrade handshake regardless of what Redis knows. Months of investigation, a config change to fix.</p>
-
-                <p>There's still a Redis CVE (CVE-2025-49844) in the backlog. The prod node topology is messier than the test cluster.</p>
+                <p>One category of disconnect that drove a lot of this work turned out to be Azure Front Door not having session affinity enabled. Redis handles session state (which user maps to which container) but it doesn't control WebSocket connection routing. Without session affinity at the AFD layer, the WebSocket upgrade request could land on a different ShinyProxy instance than the one handling the active connection, breaking the upgrade handshake regardless of what Redis knows. Months of investigation, a config change to fix.</p>
 
                 <hr>
 
@@ -390,24 +388,9 @@ flowchart TD
     <!-- Mermaid diagrams -->
     <script type="module">
         import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.esm.min.mjs';
-        mermaid.initialize({
-            startOnLoad: true,
-            theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
-        });
-
-        // Re-initialize Mermaid when theme changes
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.attributeName === 'data-theme') {
-                    const newTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default';
-                    mermaid.initialize({ theme: newTheme });
-                    location.reload();
-                }
-            });
-        });
-        observer.observe(document.documentElement, { attributes: true });
+        mermaid.initialize({ startOnLoad: true, theme: 'default' });
     </script>
 
-    <script src="../../assets/js/script.js"></script>
+    <script src="../../script.js"></script>
 </body>
 </html>

@@ -7,7 +7,7 @@
     <meta name="author" content="Sumedh R. Sankhe">
     <meta name="keywords" content="Kubernetes, R, Shiny, ShinyProxy, Docker, DevOps, AKS, Azure, Redis, ingress-nginx">
     <title>Why Kubernetes for R Shiny? | Sumedh R. Sankhe</title>
-    <link rel="icon" type="image/svg+xml" href="../../assets/images/favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="../../favicon.svg">
 
     <!-- Canonical URL -->
     <link rel="canonical" content="https://sumedhsankhe.github.io/blog/posts/k8s-shiny-part-1-why-kubernetes.html">
@@ -16,8 +16,8 @@
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://sumedhsankhe.github.io/blog/posts/k8s-shiny-part-1-why-kubernetes.html">
     <meta property="og:title" content="Running R Shiny at Scale: Why Kubernetes Changes Everything">
-    <meta property="og:description" content="The problem with traditional Shiny deployments, and the component stack — ShinyProxy, Kubernetes, Redis, ingress-nginx — that solves it.">
-    <meta property="og:image" content="https://sumedhsankhe.github.io/assets/images/profile.png">
+    <meta property="og:description" content="The problem with traditional Shiny deployments, and the component stack (ShinyProxy, Kubernetes, Redis, ingress-nginx) that solves it.">
+    <meta property="og:image" content="https://sumedhsankhe.github.io/profile.png">
     <meta property="article:published_time" content="2026-06-06">
     <meta property="article:author" content="Sumedh R. Sankhe">
     <meta property="article:tag" content="Kubernetes">
@@ -54,7 +54,7 @@
     </script>
 
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="../../assets/css/styles.css">
+    <link rel="stylesheet" href="../../styles.css">
 
     <!-- Inline theme script to prevent FOUC -->
     <script>
@@ -116,7 +116,7 @@
                     <span class="blog-post-read-time">13 min read</span>
                 </div>
                 <h1>Running R Shiny at Scale: Why Kubernetes Changes Everything</h1>
-                <p class="blog-post-subtitle">Part 1 of 3 — The problem with traditional Shiny deployments, and the component stack that solves it.</p>
+                <p class="blog-post-subtitle">Part 1 of 3: The problem with traditional Shiny deployments, and the component stack that solves it.</p>
                 <div class="blog-post-tags">
                     <span class="blog-tag">Kubernetes</span>
                     <span class="blog-tag">R Shiny</span>
@@ -127,7 +127,7 @@
             </header>
 
             <div class="blog-post-content">
-                <p class="blog-intro">I was the developer of a Shiny application. At some point, keeping the cluster it ran on alive became part of my job too — without much documentation on how any of it was set up, and with the cluster itself not having been actively touched in roughly three years. This is what I learned over the next few months.</p>
+                <p class="blog-intro">I was the developer of a Shiny application. At some point, keeping the cluster it ran on alive became part of my job too, with no documentation on how any of it was set up, and the cluster not having been actively touched in roughly three years. This is what I learned over the next few months.</p>
 
                 <div class="series-nav">
                     <strong>Series:</strong>
@@ -144,7 +144,7 @@
 
                 <p>But the moment an organization falls in love with a Shiny app and wants to share it broadly, a problem appears: <strong>Shiny was not designed to serve many concurrent users.</strong></p>
 
-                <p>At its core, a Shiny app runs inside a single R process. R is single-threaded. When one user clicks a button, their computation runs — and if two users click at the same time, one waits. This is not a bug in Shiny; it is a consequence of what R is. Shiny makes R accessible on the web, but it does not change R's concurrency model.</p>
+                <p>At its core, a Shiny app runs inside a single R process. R is single-threaded. When one user clicks a button, their computation runs. If two users click at the same time, one waits. This is not a bug in Shiny; it is a consequence of what R is. Shiny makes R accessible on the web, but it does not change R's concurrency model.</p>
 
                 <h3>What "at scale" actually means</h3>
 
@@ -152,9 +152,9 @@
 
                 <ul>
                     <li>More than a handful of <strong>concurrent</strong> users, each needing their own independent session</li>
-                    <li><strong>Isolation</strong> between users — one user's crash should not affect anyone else</li>
-                    <li><strong>Reproducibility</strong> — the app behaves the same for every user, every time</li>
-                    <li><strong>Maintainability</strong> — updating the app should not require coordinating with everyone currently using it</li>
+                    <li><strong>Isolation</strong> between users: one user's crash should not affect anyone else</li>
+                    <li><strong>Reproducibility</strong>: the app behaves the same for every user, every time</li>
+                    <li><strong>Maintainability</strong>: updating the app should not require coordinating with everyone currently using it</li>
                 </ul>
 
                 <p>Traditional solutions involve running multiple Shiny Server instances behind a load balancer, but this is difficult to manage, easy to misconfigure, and wastes resources (each instance is always on, whether users are present or not).</p>
@@ -163,7 +163,7 @@
 
                 <p>Before Kubernetes, the key insight was <strong>containerization</strong>.</p>
 
-                <p>A container packages an application together with everything it needs to run: the R version, the exact package versions, the system libraries, the environment variables. The result is a single artifact — a Docker image — that behaves identically whether it runs on a developer's laptop or a server in a data center.</p>
+                <p>A container packages an application together with everything it needs to run: the R version, the exact package versions, the system libraries, the environment variables. The result is a single artifact, a Docker image, that behaves identically whether it runs on a developer's laptop or a server in a data center.</p>
 
                 <p>For Shiny, this is transformative:</p>
 
@@ -183,7 +183,7 @@
 
                 <h2 id="kubernetes">Kubernetes in Plain Language</h2>
 
-                <p>Kubernetes (often abbreviated K8s) is software for managing containers at scale. Think of it as an air traffic control system — it does not fly the planes, but it knows where every plane is, where it needs to go, and what to do when something goes wrong.</p>
+                <p>Kubernetes (often abbreviated K8s) is software for managing containers at scale. Think of it as an air traffic control system: it does not fly the planes, but it knows where every plane is, where it needs to go, and what to do when something goes wrong.</p>
 
                 <div class="diagram-container">
                     <div class="mermaid">
@@ -208,16 +208,16 @@ graph TD
                         <tr><th>Term</th><th>Plain English</th></tr>
                     </thead>
                     <tbody>
-                        <tr><td><strong>Pod</strong></td><td>The smallest unit — one running container (or a tightly coupled group)</td></tr>
+                        <tr><td><strong>Pod</strong></td><td>The smallest unit: one running container (or a tightly coupled group)</td></tr>
                         <tr><td><strong>Node</strong></td><td>A virtual machine that runs pods</td></tr>
                         <tr><td><strong>Cluster</strong></td><td>A group of nodes managed together</td></tr>
                         <tr><td><strong>Namespace</strong></td><td>A logical partition inside a cluster (like folders in a filesystem)</td></tr>
-                        <tr><td><strong>Ingress</strong></td><td>The front door — routes external traffic to the right internal service</td></tr>
+                        <tr><td><strong>Ingress</strong></td><td>The front door: routes external traffic to the right internal service</td></tr>
                         <tr><td><strong>Deployment</strong></td><td>A declaration of what should be running and how many copies</td></tr>
                     </tbody>
                 </table>
 
-                <p>Kubernetes continuously watches the declared state ("I want three copies of this container running") and reconciles it against reality ("right now only two are running — starting a third").</p>
+                <p>Kubernetes continuously watches the declared state ("I want three copies of this container running") and reconciles it against reality ("right now only two are running, starting a third").</p>
 
                 <h2 id="shinyproxy">ShinyProxy: The Bridge Between Shiny and Kubernetes</h2>
 
@@ -271,7 +271,7 @@ sequenceDiagram
 
                 <p>Running ShinyProxy inside Kubernetes introduces a meta-problem: how do you manage ShinyProxy's own lifecycle? How do you update it without dropping active user sessions?</p>
 
-                <p>This is solved by the <strong>ShinyProxy Operator</strong> — a Kubernetes controller that manages ShinyProxy instances. The operator watches a custom configuration resource (the ShinyProxy CR) and handles:</p>
+                <p>This is solved by the <strong>ShinyProxy Operator</strong>, a Kubernetes controller that manages ShinyProxy instances. The operator watches a custom configuration resource (the ShinyProxy CR) and handles:</p>
 
                 <ul>
                     <li>Starting and stopping ShinyProxy pods</li>
@@ -298,7 +298,7 @@ graph LR
 
                 <p>When you run multiple ShinyProxy instances (for high availability or during updates), they need to share knowledge about which user has which container running. This shared state lives in <strong>Redis</strong>, an in-memory data store.</p>
 
-                <p>The setup uses Redis Sentinel — a mode where multiple Redis instances elect a leader and automatically handle failover if the leader becomes unavailable. This means ShinyProxy's session data survives even if one Redis node goes down.</p>
+                <p>The setup uses Redis Sentinel, a mode where multiple Redis instances elect a leader and automatically handle failover if the leader becomes unavailable. This means ShinyProxy's session data survives even if one Redis node goes down.</p>
 
                 <div class="diagram-container">
                     <div class="mermaid">
@@ -369,12 +369,12 @@ graph TD
                 <ul>
                     <li>You need <strong>full control</strong> over the infrastructure (networking, secrets, compute)</li>
                     <li>You are <strong>already running Kubernetes</strong> for other services</li>
-                    <li>You want <strong>multi-cloud portability</strong> — no vendor lock-in</li>
+                    <li>You want <strong>multi-cloud portability</strong>, with no vendor lock-in</li>
                     <li>You have <strong>specific compliance requirements</strong> around where data lives</li>
                     <li>You want to co-locate the Shiny app with other containerized services</li>
                 </ul>
 
-                <p>None of these are universal arguments. Kubernetes adds real operational complexity — I'd estimate the stack described in this series takes 1.5–2 engineers to operate properly, which Posit Connect largely avoids. The point is knowing what you're trading and why.</p>
+                <p>None of these are universal arguments. Kubernetes adds real operational complexity. I'd estimate the stack described in this series takes 1.5–2 engineers to operate properly, which Posit Connect largely avoids. The point is knowing what you're trading and why.</p>
 
                 <h2 id="whats-next">What's Next</h2>
 
@@ -425,24 +425,9 @@ graph TD
     <!-- Mermaid diagrams -->
     <script type="module">
         import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.esm.min.mjs';
-        mermaid.initialize({
-            startOnLoad: true,
-            theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
-        });
-
-        // Re-initialize Mermaid when theme changes
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.attributeName === 'data-theme') {
-                    const newTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default';
-                    mermaid.initialize({ theme: newTheme });
-                    location.reload();
-                }
-            });
-        });
-        observer.observe(document.documentElement, { attributes: true });
+        mermaid.initialize({ startOnLoad: true, theme: 'default' });
     </script>
 
-    <script src="../../assets/js/script.js"></script>
+    <script src="../../script.js"></script>
 </body>
 </html>

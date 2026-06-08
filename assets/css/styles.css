@@ -1924,6 +1924,51 @@ button:focus {
     margin-top: 1rem;
 }
 
+/* Series Navigation */
+.series-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    border-left: 4px solid var(--primary);
+    border-radius: 4px;
+    padding: 0.875rem 1.25rem;
+    margin: 1.5rem 0 2rem;
+    font-size: 0.9375rem;
+    color: var(--gray-700);
+}
+
+.series-nav a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.series-nav a:hover {
+    text-decoration: underline;
+    color: var(--primary-dark);
+}
+
+/* Mermaid Diagram Container — always light so diagram colors are readable */
+.diagram-container {
+    margin: 2rem 0;
+    background: #ffffff;
+    border: 1px solid var(--gray-200);
+    border-radius: 8px;
+    overflow: hidden;
+    text-align: center;
+}
+
+[data-theme="dark"] .diagram-container {
+    border-color: #475569;
+}
+
+[data-theme="dark"] .diagram-container svg {
+    background-color: #ffffff;
+}
+
 /* Utility Classes */
 .hidden {
     display: none;
