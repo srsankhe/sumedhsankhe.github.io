@@ -3,7 +3,7 @@
     {
       "id": "k8s-shiny-part-3-azure-production",
       "title": "Going to Production: Azure Kubernetes Service for R Shiny",
-      "date": "2026-06-06",
+      "date": "2026-06-07",
       "readTime": "14 min read",
       "excerpt": "Part 3 of 3: AKS node pools, container registry, Key Vault secrets, OIDC authentication, Log Analytics monitoring, and zero-downtime deployments for a production Shiny cluster on Azure.",
       "tags": ["Kubernetes", "Azure", "AKS", "R Shiny", "DevOps"],
@@ -12,7 +12,7 @@
     {
       "id": "k8s-shiny-part-2-local-rig",
       "title": "Validate Before You Spend: A Local Kubernetes Rig for R Shiny",
-      "date": "2026-06-06",
+      "date": "2026-06-02",
       "readTime": "11 min read",
       "excerpt": "Part 2 of 3: Build a full local Kubernetes cluster with Colima and k3s to validate your Shiny stack before touching Azure. Covers upgrade testing, maxPods sizing, Apple Silicon emulation, and session behavior testing.",
       "tags": ["Kubernetes", "R Shiny", "k3s", "Colima", "DevOps"],
@@ -21,7 +21,7 @@
     {
       "id": "k8s-shiny-part-1-why-kubernetes",
       "title": "Running R Shiny at Scale: Why Kubernetes Changes Everything",
-      "date": "2026-06-06",
+      "date": "2026-05-27",
       "readTime": "13 min read",
       "excerpt": "Part 1 of 3: The problem with traditional Shiny deployments and the component stack — ShinyProxy, Kubernetes, Redis Sentinel, ingress-nginx, cert-manager — that solves it. No prior Kubernetes experience required.",
       "tags": ["Kubernetes", "R Shiny", "ShinyProxy", "Docker", "DevOps"],
