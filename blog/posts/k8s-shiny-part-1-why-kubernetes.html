@@ -76,48 +76,6 @@
         })();
     </script>
 
-    <style>
-        .diagram-container {
-            margin: 2rem 0;
-            text-align: center;
-            overflow-x: auto;
-        }
-        .diagram-container svg {
-            max-width: 100%;
-            height: auto;
-        }
-        .blog-post-content table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1.5rem 0;
-            font-size: 0.95rem;
-        }
-        .blog-post-content th,
-        .blog-post-content td {
-            padding: 0.6rem 1rem;
-            border: 1px solid var(--border-color, #ddd);
-            text-align: left;
-        }
-        .blog-post-content th {
-            background: var(--card-bg, #f5f5f5);
-            font-weight: 600;
-        }
-        .series-nav {
-            display: flex;
-            gap: 1rem;
-            margin: 2rem 0;
-            padding: 1rem;
-            background: var(--card-bg, #f5f5f5);
-            border-radius: 8px;
-            font-size: 0.9rem;
-        }
-        .series-nav a {
-            text-decoration: none;
-        }
-        .series-nav a:hover {
-            text-decoration: underline;
-        }
-    </style>
 </head>
 <body>
     <a href="#main-content" class="skip-to-main">Skip to main content</a>
@@ -209,7 +167,7 @@
 
                 <p>For Shiny, this is transformative:</p>
 
-                <table>
+                <table class="blog-table">
                     <thead>
                         <tr><th>Before containers</th><th>After containers</th></tr>
                     </thead>
@@ -228,7 +186,7 @@
                 <p>Kubernetes (often abbreviated K8s) is software for managing containers at scale. Think of it as an air traffic control system — it does not fly the planes, but it knows where every plane is, where it needs to go, and what to do when something goes wrong.</p>
 
                 <div class="diagram-container">
-                    <pre class="mermaid">
+                    <div class="mermaid">
 graph TD
     User["User's Browser"] --> Ingress["Ingress\n(Traffic Entry Point)"]
     Ingress --> SP["ShinyProxy\n(Session Manager)"]
@@ -240,12 +198,12 @@ graph TD
     style K8s fill:#326ce5,color:#fff
     style SP fill:#f4811f,color:#fff
     style Ingress fill:#43bf91,color:#fff
-                    </pre>
+                    </div>
                 </div>
 
                 <p>Key Kubernetes concepts, explained without jargon:</p>
 
-                <table>
+                <table class="blog-table">
                     <thead>
                         <tr><th>Term</th><th>Plain English</th></tr>
                     </thead>
@@ -277,7 +235,7 @@ graph TD
                 <p>This gives every user a fully isolated Shiny session with zero manual coordination.</p>
 
                 <div class="diagram-container">
-                    <pre class="mermaid">
+                    <div class="mermaid">
 sequenceDiagram
     participant U as User
     participant SP as ShinyProxy
@@ -297,7 +255,7 @@ sequenceDiagram
     U->>SP: User closes browser
     SP->>K: Stop container for this user
     K->>C: Container stopped (resources freed)
-                    </pre>
+                    </div>
                 </div>
 
                 <h3>What ShinyProxy adds to the picture</h3>
@@ -322,7 +280,7 @@ sequenceDiagram
                 </ul>
 
                 <div class="diagram-container">
-                    <pre class="mermaid">
+                    <div class="mermaid">
 graph LR
     CR["ShinyProxy\nConfiguration\n(Custom Resource)"] --> OP["ShinyProxy\nOperator"]
     OP --> SP1["ShinyProxy\nInstance A"]
@@ -331,7 +289,7 @@ graph LR
     SP2 --> Pods
 
     style OP fill:#326ce5,color:#fff
-                    </pre>
+                    </div>
                 </div>
 
                 <p>The operator pattern is a common Kubernetes idiom: instead of manually running commands to update configuration, you declare the desired state in a resource file, and a controller continuously reconciles toward it.</p>
@@ -343,7 +301,7 @@ graph LR
                 <p>The setup uses Redis Sentinel — a mode where multiple Redis instances elect a leader and automatically handle failover if the leader becomes unavailable. This means ShinyProxy's session data survives even if one Redis node goes down.</p>
 
                 <div class="diagram-container">
-                    <pre class="mermaid">
+                    <div class="mermaid">
 graph TD
     SP["ShinyProxy"] --> RS["Redis Sentinel\n(Cluster)"]
     RS --> R1["Redis Primary\n(Writes)"]
@@ -356,7 +314,7 @@ graph TD
     style R1 fill:#dc382d,color:#fff
     style R2 fill:#dc382d,color:#fff
     style R3 fill:#dc382d,color:#fff
-                    </pre>
+                    </div>
                 </div>
 
                 <h2 id="full-stack">The Full Stack at a Glance</h2>
@@ -364,7 +322,7 @@ graph TD
                 <p>Putting it all together, the complete component picture looks like this:</p>
 
                 <div class="diagram-container">
-                    <pre class="mermaid">
+                    <div class="mermaid">
 graph TD
     Internet["Internet"] --> DNS["DNS\nyourdomain.com"]
     DNS --> Ingress["ingress-nginx\n(Reverse Proxy + TLS)"]
@@ -385,10 +343,10 @@ graph TD
     style SP fill:#f4811f,color:#fff
     style Redis fill:#dc382d,color:#fff
     style Ingress fill:#43bf91,color:#fff
-                    </pre>
+                    </div>
                 </div>
 
-                <table>
+                <table class="blog-table">
                     <thead>
                         <tr><th>Component</th><th>Role</th></tr>
                     </thead>
@@ -466,9 +424,23 @@ graph TD
 
     <!-- Mermaid diagrams -->
     <script type="module">
-        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-        const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default';
-        mermaid.initialize({ startOnLoad: true, theme: theme, securityLevel: 'loose' });
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+        });
+
+        // Re-initialize Mermaid when theme changes
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributeName === 'data-theme') {
+                    const newTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default';
+                    mermaid.initialize({ theme: newTheme });
+                    location.reload();
+                }
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
     </script>
 
     <script src="../../assets/js/script.js"></script>

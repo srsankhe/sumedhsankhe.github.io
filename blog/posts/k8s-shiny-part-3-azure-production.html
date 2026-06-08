@@ -76,49 +76,6 @@
         })();
     </script>
 
-    <style>
-        .diagram-container {
-            margin: 2rem 0;
-            text-align: center;
-            overflow-x: auto;
-        }
-        .diagram-container svg {
-            max-width: 100%;
-            height: auto;
-        }
-        .blog-post-content table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1.5rem 0;
-            font-size: 0.95rem;
-        }
-        .blog-post-content th,
-        .blog-post-content td {
-            padding: 0.6rem 1rem;
-            border: 1px solid var(--border-color, #ddd);
-            text-align: left;
-        }
-        .blog-post-content th {
-            background: var(--card-bg, #f5f5f5);
-            font-weight: 600;
-        }
-        .series-nav {
-            display: flex;
-            gap: 1rem;
-            margin: 2rem 0;
-            padding: 1rem;
-            background: var(--card-bg, #f5f5f5);
-            border-radius: 8px;
-            font-size: 0.9rem;
-            flex-wrap: wrap;
-        }
-        .series-nav a {
-            text-decoration: none;
-        }
-        .series-nav a:hover {
-            text-decoration: underline;
-        }
-    </style>
 </head>
 <body>
     <a href="#main-content" class="skip-to-main">Skip to main content</a>
@@ -186,7 +143,7 @@
                 <p>Most of the Kubernetes manifests — the ShinyProxy CR, the Redis StatefulSet, the ingress rules — are identical between local and production. What differs is the set of Azure resources surrounding the cluster.</p>
 
                 <div class="diagram-container">
-                    <pre class="mermaid">
+                    <div class="mermaid">
 flowchart LR
     Rig["Local Rig\nColima + k3s"] -->|"same manifests\nsame images\ndifferent infra"| AKS["Azure Kubernetes\nService"]
 
@@ -205,7 +162,7 @@ flowchart LR
     end
 
     style Azure fill:#e8f0ff,stroke:#0078d4
-                    </pre>
+                    </div>
                 </div>
 
                 <h2 id="aks">Azure Kubernetes Service (AKS)</h2>
@@ -217,7 +174,7 @@ flowchart LR
                 <p>A production AKS cluster for this use case has two node pools with distinct roles:</p>
 
                 <div class="diagram-container">
-                    <pre class="mermaid">
+                    <div class="mermaid">
 graph TD
     AKS["AKS Cluster"] --> SYS["System Node Pool\nSmaller VMs\n- ingress-nginx\n- cert-manager\n- Redis Sentinel\n- ShinyProxy Operator\n- ShinyProxy instances"]
     AKS --> USR["User Node Pool\nLarger VMs\n- Shiny app containers\n  one per active user"]
@@ -230,7 +187,7 @@ graph TD
 
     style SYS fill:#326ce5,color:#fff
     style USR fill:#f4811f,color:#fff
-                    </pre>
+                    </div>
                 </div>
 
                 <p>Separating node pools means infrastructure is never evicted to make room for a surge in user sessions, and the user pool can be autoscaled independently of the system pool.</p>
@@ -246,7 +203,7 @@ graph TD
                 <p>ACR is Azure's managed Docker registry. Every Shiny app image lives here before it reaches the cluster.</p>
 
                 <div class="diagram-container">
-                    <pre class="mermaid">
+                    <div class="mermaid">
 flowchart LR
     Dev["Developer\nmerges code"] --> CI["CI Pipeline\nGitHub Actions"]
     CI --> Build["Build Docker image"]
@@ -256,7 +213,7 @@ flowchart LR
     style CI fill:#2088ff,color:#fff
     style Push fill:#0078d4,color:#fff
     style AKS fill:#326ce5,color:#fff
-                    </pre>
+                    </div>
                 </div>
 
                 <p>A key detail: <strong>the image tag is static</strong> (e.g., <code>prod</code>), but the image digest behind that tag changes with every CI push. ShinyProxy is configured with <code>imagePullPolicy: Always</code>, which means it checks for a new image every time it starts a Shiny container. This gives you deploys without a maintenance window:</p>
@@ -279,7 +236,7 @@ flowchart LR
                 <p>Shiny applications need secrets: database passwords, API keys, OIDC client credentials, storage account keys. These must never be committed to source control or baked into Docker images.</p>
 
                 <div class="diagram-container">
-                    <pre class="mermaid">
+                    <div class="mermaid">
 flowchart TD
     Admin["Administrator\nstores secret in Key Vault"] --> KV["Azure Key Vault"]
     KV --> CSI["Secrets Store CSI Driver\nKubernetes add-on"]
@@ -289,7 +246,7 @@ flowchart TD
 
     style KV fill:#f4a71d,color:#fff
     style AKS_ID fill:#0078d4,color:#fff
-                    </pre>
+                    </div>
                 </div>
 
                 <p>Key properties of this setup: secrets never appear in Kubernetes manifests or environment files; they are fetched at pod start time. Rotation is straightforward — update the value in Key Vault, and the next pod start picks up the new value. Access is auditable — Key Vault logs every read.</p>
@@ -299,7 +256,7 @@ flowchart TD
                 <p>ShinyProxy integrates with an OpenID Connect (OIDC) identity provider for user authentication. This is what lets you restrict access to specific user groups, maintain session identity, and audit who ran what.</p>
 
                 <div class="diagram-container">
-                    <pre class="mermaid">
+                    <div class="mermaid">
 sequenceDiagram
     participant U as User
     participant I as ingress-nginx
@@ -319,7 +276,7 @@ sequenceDiagram
     SP->>SP: Validate token, check authorization
     SP->>P: Start Shiny container for authorized user
     SP->>U: Session cookie + proxy to Shiny
-                    </pre>
+                    </div>
                 </div>
 
                 <p>A staging slot on the identity provider is used for non-production clusters — authentication flows can be tested without affecting production user credentials or audit logs. ShinyProxy's authorization model allows per-app access control: different user groups can access different apps, and unauthorized users see an access-denied page rather than having a pod started for them.</p>
@@ -339,7 +296,7 @@ sequenceDiagram
                 <p>Putting it all together — from "developer merges a pull request" to "users see the new version":</p>
 
                 <div class="diagram-container">
-                    <pre class="mermaid">
+                    <div class="mermaid">
 flowchart TD
     PR["Developer merges PR\nto main branch"] --> CI["CI pipeline triggers\nGitHub Actions"]
     CI --> Build["Build Docker image\nwith R + app code"]
@@ -359,7 +316,7 @@ flowchart TD
     style NewPod fill:#d4edda
     style Fail fill:#f8d7da
     style Note fill:#fff3cd
-                    </pre>
+                    </div>
                 </div>
 
                 <p>No manual deployment step. No scheduled maintenance window. No coordinated rollout. The new code simply becomes the image new sessions use, while existing sessions continue undisturbed.</p>
@@ -368,7 +325,7 @@ flowchart TD
 
                 <p>After following this path — local rig validation, then Azure production deployment — "production-ready" means something specific:</p>
 
-                <table>
+                <table class="blog-table">
                     <thead>
                         <tr><th>Property</th><th>How it's achieved</th></tr>
                     </thead>
@@ -432,9 +389,23 @@ flowchart TD
 
     <!-- Mermaid diagrams -->
     <script type="module">
-        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-        const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default';
-        mermaid.initialize({ startOnLoad: true, theme: theme, securityLevel: 'loose' });
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+        });
+
+        // Re-initialize Mermaid when theme changes
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributeName === 'data-theme') {
+                    const newTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default';
+                    mermaid.initialize({ theme: newTheme });
+                    location.reload();
+                }
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
     </script>
 
     <script src="../../assets/js/script.js"></script>

@@ -76,49 +76,6 @@
         })();
     </script>
 
-    <style>
-        .diagram-container {
-            margin: 2rem 0;
-            text-align: center;
-            overflow-x: auto;
-        }
-        .diagram-container svg {
-            max-width: 100%;
-            height: auto;
-        }
-        .blog-post-content table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1.5rem 0;
-            font-size: 0.95rem;
-        }
-        .blog-post-content th,
-        .blog-post-content td {
-            padding: 0.6rem 1rem;
-            border: 1px solid var(--border-color, #ddd);
-            text-align: left;
-        }
-        .blog-post-content th {
-            background: var(--card-bg, #f5f5f5);
-            font-weight: 600;
-        }
-        .series-nav {
-            display: flex;
-            gap: 1rem;
-            margin: 2rem 0;
-            padding: 1rem;
-            background: var(--card-bg, #f5f5f5);
-            border-radius: 8px;
-            font-size: 0.9rem;
-            flex-wrap: wrap;
-        }
-        .series-nav a {
-            text-decoration: none;
-        }
-        .series-nav a:hover {
-            text-decoration: underline;
-        }
-    </style>
 </head>
 <body>
     <a href="#main-content" class="skip-to-main">Skip to main content</a>
@@ -188,14 +145,14 @@
                 <p>The solution is a <strong>local test rig</strong>: a full replica of the production stack running entirely on a developer's laptop. Not a mock. Not a simplified version. The same components, the same configuration, the same behaviors — just on a smaller scale.</p>
 
                 <div class="diagram-container">
-                    <pre class="mermaid">
+                    <div class="mermaid">
 flowchart LR
     Dev["Developer\nLaptop"] -->|"validate first"| Rig["Local K8s Rig\nColima + k3s"]
     Rig -->|"promote when confident"| AKS["Azure AKS\nProduction"]
 
     style Rig fill:#e8f4f8,stroke:#43bf91
     style AKS fill:#0078d4,color:#fff
-                    </pre>
+                    </div>
                 </div>
 
                 <p>A well-built local rig lets you:</p>
@@ -220,7 +177,7 @@ flowchart LR
 
                 <p>Inside the k3s cluster, the stack mirrors production exactly:</p>
 
-                <table>
+                <table class="blog-table">
                     <thead>
                         <tr><th>Component</th><th>Local Version</th></tr>
                     </thead>
@@ -239,7 +196,7 @@ flowchart LR
                 <h2 id="architecture">Architecture: What's Running and Why</h2>
 
                 <div class="diagram-container">
-                    <pre class="mermaid">
+                    <div class="mermaid">
 graph TD
     Browser["Browser\nlocalhost"] --> Ingress
 
@@ -259,7 +216,7 @@ graph TD
     style Redis fill:#dc382d,color:#fff
     style Ingress fill:#43bf91,color:#fff
     style Operator fill:#326ce5,color:#fff
-                    </pre>
+                    </div>
                 </div>
 
                 <p>Three choices here that differ from a typical local setup and are worth explaining:</p>
@@ -275,7 +232,7 @@ graph TD
                 <p>The primary use case for a local rig is <strong>upgrade validation</strong>. This is the workflow:</p>
 
                 <div class="diagram-container">
-                    <pre class="mermaid">
+                    <div class="mermaid">
 flowchart TD
     A["Identify upgrade target\ne.g. ShinyProxy 3.0.2 to 3.2.4"] --> B["Update version in local rig config"]
     B --> C["Rebuild and redeploy the rig"]
@@ -295,7 +252,7 @@ flowchart TD
 
     style A fill:#e8f4f8
     style M fill:#d4edda,stroke:#28a745
-                    </pre>
+                    </div>
                 </div>
 
                 <p>This workflow caught real issues before they reached production. Upgrading from ShinyProxy 3.0.2 to 3.2.4, the session timeout properties were silently renamed — <code>proxy.test-timeout</code> became <code>proxy.container-wait-timeout</code> and <code>proxy.app-init-timeout</code> became <code>proxy.container-wait-time</code>. Nothing in the changelog called this out prominently. The rig surfaced it as a pod-start failure; production would have surfaced it as users unable to launch apps. Same story with ingress-nginx annotation syntax across major versions. These are not the kinds of things you find in a diff.</p>
@@ -305,7 +262,7 @@ flowchart TD
                 <p>One of the less-documented aspects of Kubernetes is that each node has a hard limit on the number of pods it can run, set at node creation time (<code>maxPods</code>). This limit is <strong>immutable after creation</strong>. It also determines how much memory the Kubernetes node agent pre-reserves — even if far fewer pods are actually running.</p>
 
                 <div class="diagram-container">
-                    <pre class="mermaid">
+                    <div class="mermaid">
 graph TD
     Node["Kubernetes Node\n4 CPU / 16 GB RAM"]
     Node --> Reserve["Kubelet Memory Reservation\nscales with maxPods setting"]
@@ -318,7 +275,7 @@ graph TD
     style Reserve fill:#fff3cd
     style Available fill:#d4edda
     style Note1 fill:#f8d7da,stroke:#f5c6cb
-                    </pre>
+                    </div>
                 </div>
 
                 <p>The practical implication: if you set <code>maxPods</code> too high, kubelet pre-reserves memory you'll never use. Too low, and you hit the pod count ceiling before the memory ceiling. The local rig is the right place to measure this empirically. In production, changing <code>maxPods</code> requires a blue/green pool rotation — getting it right locally saves significant disruption later.</p>
@@ -328,7 +285,7 @@ graph TD
                 <p>If you're developing on a Mac with an Apple M-series chip (arm64), Shiny app images built for production (linux/amd64) won't run natively. The recommended strategy:</p>
 
                 <div class="diagram-container">
-                    <pre class="mermaid">
+                    <div class="mermaid">
 flowchart LR
     A["arm64 node\nApple Silicon"] --> B["Infrastructure pods\ningress, Redis, operator"]
     A --> C["Shiny app pod\nlinux/amd64"]
@@ -338,7 +295,7 @@ flowchart LR
 
     style D fill:#d4edda
     style E fill:#fff3cd
-                    </pre>
+                    </div>
                 </div>
 
                 <p>Build infrastructure images natively for arm64 — they run fast. For the Shiny app pod, use the same linux/amd64 image as production, relying on Linux's <code>binfmt_misc</code> for emulation. It's slower to start (20–30 seconds vs 5 seconds for native), but you're testing the actual production image. The tradeoff is worth it.</p>
@@ -348,7 +305,7 @@ flowchart LR
                 <p>Beyond "did it start," the local rig enables systematic testing of session behaviors that are otherwise hard to observe without affecting real users.</p>
 
                 <div class="diagram-container">
-                    <pre class="mermaid">
+                    <div class="mermaid">
 sequenceDiagram
     participant H as Test Harness
     participant SP as ShinyProxy
@@ -366,7 +323,7 @@ sequenceDiagram
     H->>SP: Reconnect attempt
     SP->>R: Look up user session
     SP-->>H: Reconnected to same container
-                    </pre>
+                    </div>
                 </div>
 
                 <p>Running this kind of test systematically — with a Playwright-based harness driving different close scenarios — gives you quantitative answers (how long does reconnect take? how many sessions survive a rolling restart?) before the question comes up in production.</p>
@@ -376,7 +333,7 @@ sequenceDiagram
                 <p>When unexpected behavior appears in production, the rig lets you reproduce it without risk. The debugging loop:</p>
 
                 <div class="diagram-container">
-                    <pre class="mermaid">
+                    <div class="mermaid">
 flowchart LR
     Prod["Production observation\nPod keeps restarting"] --> Hypo["Form hypothesis\nRedis connection timeout?"]
     Hypo --> Repro["Reproduce on rig\nsimulate Redis leader failure"]
@@ -389,7 +346,7 @@ flowchart LR
     style Prod fill:#f8d7da
     style Fix fill:#d4edda
     style Promote fill:#0078d4,color:#fff
-                    </pre>
+                    </div>
                 </div>
 
                 <h2 id="limits">What the Local Rig Cannot Tell You</h2>
@@ -448,9 +405,23 @@ flowchart LR
 
     <!-- Mermaid diagrams -->
     <script type="module">
-        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-        const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default';
-        mermaid.initialize({ startOnLoad: true, theme: theme, securityLevel: 'loose' });
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+        });
+
+        // Re-initialize Mermaid when theme changes
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributeName === 'data-theme') {
+                    const newTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default';
+                    mermaid.initialize({ theme: newTheme });
+                    location.reload();
+                }
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
     </script>
 
     <script src="../../assets/js/script.js"></script>
